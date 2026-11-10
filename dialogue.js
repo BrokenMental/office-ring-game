@@ -22,15 +22,9 @@ function dialogueIllustration(){
  return storyIllustrations[npc]?.[dialogue.index]||Object.values(storyIllustrations[npc]||{})[0]||dialogueArt.records;
 }
 
-const scenes=opponents.map((o,i)=>[
- ...(i===0?[
- ['사내 방송','지하실 대결 신청 접수. 전 층 대결 모드로 전환했습니다. 첫 번째 상대는 기획팀 깐족왕 동기입니다.'],
- ['나','내년까지 일만 하라고? 좋아. 계약서에 적힌 대로 이 회사부터 가져가겠어.'],
- ]:[]),
- ['과거 기록 · '+o.history.title,o.history.origin],
- ['그가 변한 순간',o.history.change],
- ['내가 기억하는 '+o.department,o.history.incident],
- [o.name,o.intro],['나',o.reply],['사내 방송',i===opponents.length-1?'최종전. 이기면 오늘부터 당신이 최대 주주입니다.':'승리하면 다음 라운드로. 퇴근 결재까지 '+(opponents.length-i)+'명 남았다.']
+const scenes=opponents.map(o=>[
+ ['나레이션',o.history.origin],['나레이션',o.history.change],['나레이션',o.history.incident],
+ [o.name,o.intro],['나',o.reply]
 ]);
 // Keep the comic proportions while making the rest of the page non-interactive.
 const comicInertState=new Map();
@@ -58,7 +52,7 @@ function renderDialogue(){
  const [speaker,line]=dialogue.lines[dialogue.index];
  $('#dialogueSpeaker').textContent=speaker;$('#dialogueText').textContent=line.slice(0,Math.floor(dialogue.revealed));
  $('#dialogueCount').textContent=`${dialogue.index+1} / ${dialogue.lines.length}`;
- $('#storyChapter').textContent=tutorial>=0?'길잡이 선임 · 사전 연습':dialogue.index<(npc===0?2:0)?'PROLOGUE':'ROUND '+(npc+1)+' · '+opponents[npc].history.title;
+ $('#storyChapter').hidden=true;
  const candidate=dialogueIllustration(),art=failedStoryImages.has(candidate.src)?(failedStoryImages.has(dialogueArt.records.src)?dialogueArt.fallback:dialogueArt.records):candidate,comic=$('#storyComic');
  comic.hidden=false;$('.arena').classList.add('story-comic');
  const img=$('#storyComicImage');if(!img.src?.endsWith(art.src))img.src=art.src;img.alt=art.alt;
@@ -115,14 +109,14 @@ document.addEventListener?.('click',e=>{
 selectOpponent(0);
 
 const comicPanels=[
- ['23:58 · 더는 못 버티겠다','끝없는 야근, 떠넘기는 업무, 매일 이어지는 괴롭힘. 결국 사직서를 썼다.','assets/opening/panel-1.png'],
- ['찢겨버린 사직서','“내년까지 계약이잖아. 못 그만둬. 가서 일이나 해 와.” 상사는 사직서를 눈앞에서 찢어버리고 나를 방 밖으로 내쫓았다.','assets/opening/resignation-torn.png'],
- ['몰래 신고를 준비하던 밤','자리로 돌아와 몰래 노동청에 신고하려 했다. 늦은 밤, 접수 전에 증거를 챙기려고 고용계약서부터 확인했다.','assets/opening/report-preparation.png'],
- ['계약서 맨 끝, 작은 조항','마지막 장 끄트머리에 작은 글씨가 있었다. “회사 내 모든 사람을 이기고 최대 주주를 이기면 회사 지분 100%를 양도한다.”','assets/opening/contract-clause.png'],
- ['그 조항대로 하겠습니다','다음 날 아침, 계약서에 적힌 지하실 대결 신청 버튼을 찾아 내려갔다. 그만두지도 못하게 한다면, 이 회사부터 내 것으로 만들겠다.','assets/opening/panel-3-v2.png'],
- ['지하실의 대결 신청 버튼','덮개를 열고 대결 신청 버튼을 눌렀다. 지하실의 경보등이 켜지고, 사이렌이 회사 전체에 울려 퍼졌다.','assets/opening/basement-activation.png'],
- ['회사 전체, 대결 모드','위이이잉—! 붉은 경보등과 함께 회사 전체가 대결 모드로 바뀌었다. “대결 신청 접수. 전 층 대결 모드 전환. 첫 상대를 안내합니다.”','assets/opening/company-alarm.png'],
- ['내게 잘해주던 선임','신청은 접수됐다. 회사에서 유일하게 나를 잘 대해주던 선임이, 첫 대결 전에 주먹 쓰는 법을 알려주겠다고 했다.','assets/opening/panel-5-v2.png']
+ ['나레이션','끝없는 야근과 괴롭힘에 지쳐 사직서를 냈다.','assets/opening/panel-1.png'],
+ ['나레이션','상사는 “내년까지 계약이잖아”라며 사직서를 찢어버리고 나를 내쫓았다.','assets/opening/resignation-torn.png'],
+ ['나레이션','몰래 노동청에 신고하려고, 증거가 될 고용계약서를 확인했다.','assets/opening/report-preparation.png'],
+ ['나레이션','마지막 조항에는 “모든 사원과 최대 주주를 이기면 회사 지분 100%를 양도한다”고 적혀 있었다.','assets/opening/contract-clause.png'],
+ ['나레이션','계약서에는 지하실 대결 신청 버튼을 누르면 모든 사원에게 게임 시작이 전달된다고 했다. 그 버튼을 찾아 내려갔다.','assets/opening/panel-3-v2.png'],
+ ['나레이션','시작 버튼을 눌렀다. 사이렌이 회사 전체에 울려 퍼졌다.','assets/opening/basement-activation.png'],
+ ['사내 방송','“대결 신청 접수. 전 층 대결 모드 전환. 첫 상대를 안내합니다.”','assets/opening/company-alarm.png'],
+ ['나레이션','신청은 접수됐다. 유일하게 나를 잘 대해주던 선임이 첫 대결 전에 싸우는 법을 알려주겠다고 했다.','assets/opening/panel-5-v2.png']
 ];
 function renderOpening(){
  syncComicModal();
@@ -136,7 +130,9 @@ function renderOpening(){
  $('#comicArt img').onerror=()=>{$('#comicArt').innerHTML='<p class="comicFallback">삽화를 불러오지 못했습니다. 아래 이야기로 계속할 수 있습니다.</p>';};
  if(typeof Image!=='undefined'&&prologue.index<comicPanels.length-1){const preload=new Image();preload.src=comicPanels[prologue.index+1][2];}
 }
-function showStartupOpening(){prologue.active=true;prologue.index=0;prologue.launch=true;prologue.alarmPlayed=false;renderOpening();$('#openingScene').focus?.();}
+const openingSeenKey='officeRingOpeningSeenV1';
+function rememberOpening(){try{localStorage.setItem(openingSeenKey,'true');}catch{}}
+function showStartupOpening(){rememberOpening();prologue.active=true;prologue.index=0;prologue.launch=true;prologue.alarmPlayed=false;renderOpening();$('#openingScene').focus?.();}
 function finishOpening(){
  if(!prologue.active)return;const launch=prologue.launch;prologue.active=false;prologue.launch=false;prologue.seen=true;companyDuelMode=true;document.body.classList.add('duel-mode');syncComicModal();$('#openingScene').hidden=true;keys={};pressed={};
  if(launch){startAction();}else continueIntro();

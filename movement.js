@@ -105,7 +105,8 @@ function enemyMotion(a,phase,recovery=null){
 }
 function npcBodyMotion(){
  const pose=attack?enemyMotion(attack,(t-attack.start)/attack.duration):impact?enemyMotion(impact,1,impact.life/.20):enemyMotion(null,0);
- return {...pose,x:pose.x+npcX*.2,y:pose.y+Math.abs(npcX)*.06,twist:pose.twist+npcX*.002};
+ const groggy=npcIsGroggy()&&!reduced?Math.sin(t*12)*Math.min(1,(npcGroggyUntil-t)*5):0;
+ return {...pose,x:pose.x+npcX*.2+groggy*7,y:pose.y+Math.abs(npcX)*.06+Math.abs(groggy)*3,twist:pose.twist+npcX*.002+groggy*.025};
 }
 function enemyRig(a,phase,recovery=null){
  const motion=enemyMotion(a,phase,recovery),side=a.side,lane=a.lane??a.side,style=a.motion||a.kind;

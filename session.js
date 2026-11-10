@@ -3,14 +3,16 @@ function freshStats(){return {hits:0,guards:0,perfects:0,counters:0,dodges:0,tak
 function readSaved(key,fallback){try{const value=JSON.parse(localStorage.getItem(key));return value??fallback;}catch{return fallback;}}
 function saveSettings(){try{localStorage.setItem('officeRingSettings',JSON.stringify({muted,reduced,difficulty,training:$('#training').checked}));}catch{}}
 function refreshBest(){const value=readSaved('officeRingBest:'+difficulty,0);best=Number.isFinite(value)&&value>=0?value:0;$('#best').textContent=best;}
-function resetRound(){roundStats=freshStats();$('#results').hidden=true;refreshBest();}
+function resetRound(){roundStats=freshStats();$('#results').hidden=true;$('#resultMeta').hidden=true;$('#overlay').classList.remove('result-screen');refreshBest();}
 function finishRound(){
  const previous=best;best=Math.max(previous,score);try{localStorage.setItem('officeRingBest:'+difficulty,JSON.stringify(best));}catch{}
  $('#best').textContent=best;
- $('#desc').textContent=`${names[npc]} · ${$('#difficulty').options?.[$('#difficulty').selectedIndex]?.text||difficulty} · ${Math.ceil(combatTime)}초`;
+ $('#overlay').classList.add('result-screen');$('#overlay>small').textContent=ep<=0?'ROUND CLEAR':'ROUND RESULT';
+ $('#desc').innerHTML=`<strong class="resultOpponent">${names[npc].split(' · ')[0]}</strong><span class="resultDepartment">${opponents[npc].department}</span>`;
+ $('#resultMeta').innerHTML=`<span>${npc+1}라운드</span><span>전투 ${Math.ceil(combatTime)}초</span>`;$('#resultMeta').hidden=false;
  $('#results').innerHTML=[['적중',roundStats.hits],['글러브 충돌',roundStats.guards],['정확한 충돌',roundStats.perfects],['회피',roundStats.dodges],['카운터',roundStats.counters]].map(([label,value])=>`<div><b>${value}</b><span>${label}</span></div>`).join('');
  $('#results').hidden=false;
- $('#resultScore').textContent=`${score.toLocaleString()}점${score>previous?' · 이 난이도 최고 기록!':''}`;
+ $('#resultScore').textContent=`${score.toLocaleString()}점${score>previous?' · 최고 기록!':''}`;
  $('#resultScore').hidden=false;
 }
 const settings=readSaved('officeRingSettings',{});

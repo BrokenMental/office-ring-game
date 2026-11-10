@@ -3,6 +3,7 @@ function playableRoundCount(){let count=0;while(count<opponents.length&&opponent
 function showContentBoundary(){
  run=false;paused=false;keys={};pressed={};buffered=null;combo=[];attack=null;
  series.contentComplete=true;document.body.classList.remove('playing');
+ $('#overlay').classList.add('result-screen');$('#overlay>small').textContent='COMING NEXT';
  $('#title').textContent='다음 라운드는 준비중입니다.';
  $('#desc').textContent=`현재 ${playableRoundCount()}라운드까지 만화가 준비되어 있습니다. 다음 이야기를 준비하고 있습니다.`;
  $('#start').innerHTML='다시하기 <span>SPACE</span>';$('#overlay').style.display='flex';
@@ -11,7 +12,7 @@ function showContentBoundary(){
 function seriesProgress(){
  $('#seriesProgress').hidden=!series.active;
  const count=playableRoundCount();
- $('#seriesProgress').textContent=series.active?(series.contentComplete?`${count}라운드까지 완료 · 다음 라운드 준비중`:`${Math.min(series.stage+1,count)} / ${count}라운드 · ${opponents[npc].name} · 다음: ${series.stage+1<count?opponents[series.stage+1].name:'준비중'}`):'';
+ $('#seriesProgress').textContent=series.active?(series.contentComplete?`${count}라운드까지 완료 · 다음 라운드 준비중`:`${Math.min(series.stage+1,count)} / ${count}라운드 · ${opponents[npc].name}`):'';
 }
 function resetSeries(){series={active:false,stage:0,total:0,seconds:0,stats:freshStats(),complete:false,contentComplete:false,replay:false};seriesProgress();}
 function startAction(){
@@ -35,14 +36,14 @@ function roundFinished(){
  if(typeof recordClear==='function'&&ep<=0)recordClear();
  if(!series.active)return;
  $('#difficulty').disabled=true;
- if(ep>0){$('#start').innerHTML='이 상대 다시 도전 <span>SPACE</span>';$('#desc').textContent+=' · 앞선 승리 기록은 유지됩니다';return;}
+ if(ep>0){$('#start').innerHTML='이 상대 다시 도전 <span>SPACE</span>';$('#resultMeta').innerHTML+='<span>앞선 승리 기록 유지</span>';return;}
  series.total+=score;series.seconds+=combatTime;
  for(const key of Object.keys(series.stats))series.stats[key]+=roundStats[key];
  if(typeof saveCareer==='function')saveCareer(true);
  if(series.stage+1>=playableRoundCount()&&playableRoundCount()<opponents.length){showContentBoundary();return;}
  if(series.stage<opponents.length-1){
-  $('#start').innerHTML=`다음 상대 · ${opponentLooks[series.stage+1].badge} <span>SPACE</span>`;
-  $('#desc').textContent+=` · ${series.stage+1}/${opponents.length} 정리 완료 · 누적 ${series.total.toLocaleString()}점`;
+  $('#start').innerHTML='다음 상대 <span>SPACE</span>';
+  $('#resultMeta').innerHTML+=`<span>누적 ${series.total.toLocaleString()}점</span>`;
   $('#difficulty').disabled=true;
  }else{
   series.complete=true;$('#difficulty').disabled=false;$('#title').textContent='최대 주주 KO! 이제 이 회사는 내 회사다.';

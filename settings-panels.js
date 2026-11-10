@@ -34,7 +34,7 @@ document.body.append(legacy);
 const soundSwitch=$('#pauseSound');soundSwitch.type='button';soundSwitch.className='settingSwitch';soundSwitch.setAttribute('role','switch');soundSwitch.setAttribute('aria-label','소리');
 settingsMenu.prepend(soundSwitch);
 const motionPage=settingsPages.get('motion'),description=document.createElement('p');
-description.textContent='피격 시 화면 흔들림·확대·반동 효과를 줄입니다. 공격 속도와 판정은 바뀌지 않습니다.';
+description.textContent='피격 시 화면 흔들림·확대·반동과 그로기 일렁임을 줄입니다. 공격 속도와 판정은 바뀌지 않습니다.';
 motionPage.append(description,$('#pauseMotion'));
 $('#pauseMotion').setAttribute('role','switch');$('#pauseMotion').setAttribute('aria-label','화면 효과 줄이기');
 const resetPage=settingsPages.get('reset'),resetDescription=document.createElement('p'),resetConfirm=document.createElement('button');

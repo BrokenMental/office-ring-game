@@ -102,3 +102,31 @@ main>footer a{color:#a8b8ba}
 #storyComic img{object-fit:contain;object-position:center}.duel-mode .arena{border-color:#87584f}.duel-mode .hud{border-top:1px solid #af5b4844}
 
 .settingSwitch{display:flex;justify-content:space-between;align-items:center;gap:20px}.switchTrack{min-width:84px;border-radius:24px;background:#455057;padding:8px 10px 8px 32px;position:relative;text-align:right;font-weight:bold}.switchTrack::before{content:"";position:absolute;width:20px;height:20px;left:7px;top:50%;transform:translateY(-50%);border-radius:50%;background:#e8e8df}.settingSwitch[aria-checked="true"] .switchTrack{background:#4b6d55;padding:8px 32px 8px 10px;text-align:left}.settingSwitch[aria-checked="true"] .switchTrack::before{left:auto;right:7px}#progressResetConfirm{border-color:#b27868!important;color:#f2c5b7!important}
+
+/* Narration replaces chapter headings in both story surfaces. */
+#storyChapter{display:none}#comicTitle{font-size:13px;font-weight:600;color:#c5c8bd;margin:0 0 8px;letter-spacing:0}.comicCaption p{margin-top:0}
+
+/* A fully opaque result surface keeps the resting fight out of the summary. */
+#overlay.result-screen{inset:0 0 44px;background:linear-gradient(145deg,#202e35,#10191f 75%);padding:32px 24px;gap:12px;border-top:2px solid #c8b58e;box-shadow:inset 0 0 100px #080e1355}
+#overlay.result-screen>small{color:#c8b58e;font-size:11px;letter-spacing:3px}
+#overlay.result-screen h2{font-size:clamp(22px,3vw,38px);line-height:1.45;margin:0;max-width:90%;word-break:keep-all}
+#overlay.result-screen #desc{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:10px;margin:0;line-height:1.7;font-size:13px;max-width:640px;color:#adb9bd}
+.resultOpponent{color:#e4e9e5;font-size:16px;font-weight:600}.resultDepartment{border:1px solid #52616a;border-radius:20px;padding:2px 10px;color:#b9c6cc;font-size:11px}
+#resultMeta{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 16px;color:#93a5ad;font-size:12px;line-height:1.8}
+#overlay.result-screen #results{width:min(560px,100%);gap:0;margin:8px 0 0;padding:18px 0;border-top:1px solid #40515a;border-bottom:1px solid #40515a}
+#overlay.result-screen #results>div+div{border-left:1px solid #34464e}#overlay.result-screen #results b{font-size:clamp(21px,3vw,32px);font-weight:600}#overlay.result-screen #results span{display:block;margin-top:6px;font-size:10px;color:#9eafb5}
+#overlay.result-screen #resultScore{font-size:17px;margin:0}#overlay.result-screen #start{min-width:220px;padding:14px 24px;margin:4px 0 0;border-radius:4px;box-shadow:0 4px 16px #0003}
+@media(max-width:600px){#overlay.result-screen{padding:18px 12px;gap:9px}#overlay.result-screen #results{padding:12px 0}.resultOpponent{font-size:14px}#overlay.result-screen #start{min-width:190px}#resultMeta{font-size:11px;gap:4px 12px}}
+@media(max-height:500px){#overlay.result-screen{justify-content:flex-start;padding:12px;gap:6px}#overlay.result-screen #results{padding:8px 0;margin:0}#overlay.result-screen h2{font-size:22px}#overlay.result-screen #start{padding:10px 20px}}
+
+@media(max-width:600px){.arena:has(#overlay.result-screen){min-height:min(520px,calc(100dvh - 90px))}.arena:has(#overlay.result-screen) .arenafooter{position:absolute;bottom:0;left:0;right:0}}
+
+.fictionNotice{font-size:11px;line-height:1.65;color:#9ba8af;letter-spacing:0}main>footer{flex-wrap:wrap;gap:8px}main>footer>.fictionNotice{flex-basis:100%}#openingScene .fictionNotice{font-size:11px;color:#9ba8af;margin:10px 0}
+
+#openingScene>.fictionNotice,#dialogueScene>.fictionNotice{position:absolute;z-index:2;top:24px;right:28px;max-width:min(360px,65%);padding:6px 8px;margin:0;background:#0b121ab8;border-radius:3px;color:#c2cbd0;font-size:10px;line-height:1.5;text-align:right;letter-spacing:0;pointer-events:none;overflow-wrap:anywhere}
+@media(max-width:600px){#openingScene>.fictionNotice,#dialogueScene>.fictionNotice{top:12px;right:12px;max-width:65%;font-size:9px;padding:5px 7px}}
+@media(max-height:500px) and (orientation:landscape){#openingScene>.fictionNotice{top:8px;right:calc(38% + 10px);max-width:48%}}
+
+#openingScene>.fictionNotice,#dialogueScene>.fictionNotice{max-width:calc(100% - 40px)}#openingScene>.fictionNotice>span,#dialogueScene>.fictionNotice>span{display:block;white-space:nowrap}
+@media(max-width:600px){#openingScene>.fictionNotice,#dialogueScene>.fictionNotice{max-width:calc(100% - 24px)}}
+@media(max-height:500px) and (orientation:landscape){#openingScene>.fictionNotice{max-width:calc(62% - 20px)}}

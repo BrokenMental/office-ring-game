@@ -41,6 +41,9 @@ function prepareCareer(){
  if(item&&(item.stage<opponents.length||playableRoundCount()<opponents.length)){series={active:true,stage:item.stage,total:item.total,seconds:item.seconds,stats:{...item.stats},complete:false};selectOpponent(Math.min(item.stage,Math.max(0,playableRoundCount()-1)));}
  else selectOpponent(0);
  $('#start').innerHTML=item&&item.stage<opponents.length?`${item.stage+1}라운드 이어하기 <span>SPACE</span>`:'승급전 시작 <span>SPACE</span>';
+ const resume=!!item&&item.stage<opponents.length;
+ $('#overlay').classList.toggle('result-screen',resume);$('#resultMeta').hidden=true;
+ if(resume){$('#overlay>small').textContent='CONTINUE';$('#title').textContent=`${item.stage+1}라운드`;$('#desc').textContent='저장된 경기부터 이어갑니다.';}
  seriesProgress();
 }
 const settingsDialog=$('#settingsDialog');let settingsPaused=false,settingsReturnFocus=null;
@@ -111,4 +114,9 @@ function resetSavedProgress(){
  $('#training').disabled=false;$('#difficulty').disabled=false;$('#playMode').disabled=false;
  useAutomaticCareer();prepareCareer();persistProgress();$('#overlay').style.display='flex';showStartupOpening();
 }
-useAutomaticCareer();prepareCareer();persistProgress();showStartupOpening();
+const returningPlayer=readSaved(openingSeenKey,false)===true||Object.keys(progression.careers).length>0||Object.values(progression.cleared).some(list=>list.length>0);
+useAutomaticCareer();prepareCareer();persistProgress();
+if(returningPlayer){
+ rememberOpening();prologue.seen=true;companyDuelMode=true;document.body.classList.add('duel-mode');
+ $('#overlay').style.display='flex';
+}else showStartupOpening();

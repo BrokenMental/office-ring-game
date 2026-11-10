@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s),c=$('#game'),g=c.getContext('2d');
 const renderScale=typeof innerWidth==='number'&&innerWidth>=900?1.5:1;
 c.width=1000*renderScale;c.height=590*renderScale;g.setTransform(renderScale,0,0,renderScale,0,0);
 let npc=0,run=false,paused=false,t=0,hp=10,ep=10,hpMax=10,epMax=10,energy=100,score=0,remaining=90,next=1,attack=null,counter=0,shake=0,flash=0,hit=0,punch=0,punchSide=-1,cool=0,msg='',msgTime=0,particles=[],keys={},pressed={},audio,muted=false,best=0;
-const levels={easy:{wind:.62,gap:.26,perfect:.18},normal:{wind:.44,gap:.18,perfect:.12},hard:{wind:.32,gap:.13,perfect:.085}};
+const levels={easy:{gap:.26,perfect:.18},normal:{gap:.18,perfect:.12},hard:{gap:.13,perfect:.085}};
 let difficulty='easy',impact=null,bodyDip=0,hurt=0,opening=0,sequence=0,enemyBlock=0,contact=null;
 let reactionSide=1,reactionPower=0,papers=[],koPose=0,lastHitTarget='head';
 let stop=0,ko=0,taunt='',tauntUntil=0,reduced=false;
@@ -27,7 +27,9 @@ function finishTraining(){
 }
 function skipTutorial(){if(!run||paused||inDialogue())return;finishTraining();}
 $('#skipTraining').onclick=skipTutorial;
+function npcPunchDuration(index=npc){return .8-index*.003;}
 function beginAttack(){
+ if(npcIsGroggy()){next=Math.max(next,npcGroggyUntil);return;}
  if(tutorial>=0&&tutorial<lessons.length&&lessons[tutorial].mode==='hit'){next=Infinity;return;}
  if(tutorial>=0&&tutorial<lessons.length){attack={...lessons[tutorial],kind:'cross',start:t,duration:1.05};next=Infinity;return;}
  if(tutorial===lessons.length){next=Infinity;return;}
@@ -37,7 +39,7 @@ function beginAttack(){
  const motion=a.body?(sequence%2?'shovel':'uppercut'):styles[sequence%styles.length];
  npcGuard=null;
  const hand=a.side;
- attack={...a,side:hand,motion,aimX:playerX,kind:a.body?'body':comboIndex%2?'hook':'cross',start:t,duration:cfg().wind*opponentLooks[npc].wind*(comboIndex?.8:1)};comboIndex++;sequence++;next=Infinity;
+ attack={...a,side:hand,motion,aimX:playerX,kind:a.body?'body':comboIndex%2?'hook':'cross',start:t,duration:npcPunchDuration()*(comboIndex?.9:1)};comboIndex++;sequence++;next=Infinity;
 }
 function requestStrike(lane){
  if(!run||paused||inDialogue()||ko>0)return;
@@ -121,7 +123,8 @@ function resolvePlayerStrike(s){
  if(tutorial<0&&s.kind!=='body'&&!critical&&opening<=0&&Math.abs(npcX)>28){s.result='miss';roundStats.misses++;say('NPC 위빙 · 복부가 빈다');return;}
  if(npcBlocks(s)){
   s.result='blocked';roundStats.blocked++;enemyBlock=.22;contact=null;particles=[];hit=0;impactSound('guard');
-  npcCounterAt=t+.26;npcGuard.until=npcCounterAt;next=npcCounterAt;say('NPC 방어 · 카운터 준비!');return;
+  if(npcIsGroggy()){npcGuard.until=npcGroggyUntil;next=npcGroggyUntil;say('그로기 · NPC 방어');}
+  else{npcCounterAt=t+.26;npcGuard.until=npcCounterAt;next=npcCounterAt;say('NPC 방어 · 카운터 준비!');}return;
  }
  if(npcGuard){npcGuard=null;npcCounterAt=Infinity;next=t+.45;}
  const practice=tutorial>=0;
@@ -136,7 +139,8 @@ function resolvePlayerStrike(s){
  impactSound(critical?'counter':'punch');if(damage)burst(contact.x,contact.y,critical?'#c8b58e':'#ddd5be');
  if(practice&&tutorial<lessons.length&&lessons[tutorial].mode==='hit'&&s.lane===lessons[tutorial].lane&&!s.crouched)nextLesson();
  say(practice?'선임: 좋아, 방금 그 감각이야!':critical?'COUNTER!':({jab:'JAB',straight:'STRAIGHT',cross:'CROSS',hook:'HOOK',shovel:'BODY HOOK',uppercut:'UPPERCUT'}[s.motion]||'HIT'));
- if(critical&&!practice){combo=[];attack=null;impact=null;npcCounterAt=Infinity;npcGuard=null;opening=.45;next=t+.50;}
+ if(critical&&!practice&&ep>0)beginNPCGroggy();
+ if(npcIsGroggy())next=Math.max(next,npcGroggyUntil);
  if(ep<=0){impactSound('ko');ko=2;koPose=0;attack=null;impact=null;combo=[];keys={};papers=Array.from({length:16},(_,i)=>({x:500,y:300,vx:(i-7.5)*65,vy:-160-Math.random()*230,angle:Math.random()*6}));say('K.O. '+opponents[npc].win);}
 }
 const punchKeys={KeyJ:-1,KeyK:0,KeyL:1,KeyA:-1,KeyS:0,KeyD:1};
@@ -188,7 +192,7 @@ function drawThreat(){
  if(tutorial<0&&difficulty!=='hard')text((attack.body?'↓ + ':'')+actionKeyFor(attack)+' 펀치',x,y-80,17,'#ded8c5');
  if(tutorial<0&&difficulty==='easy')text(ready?'지금 같은 방향!':'상대 주먹을 보고 펀치',500,113,19,'#d9ccb0');
 }
-let last=0;function frame(now){let dt=Math.max(0,Math.min((now-last)/1000,.04));last=now;const frozen=stop>0;if(inDialogue())tickDialogue(dt);if(run&&!paused&&!inDialogue())update(dt);if(!paused&&!frozen){enemyBlock=Math.max(0,enemyBlock-dt);if(contact){contact.life-=dt;if(contact.life<=0)contact=null;}papers.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=500*dt;p.angle+=dt*2});shake*=Math.exp(-dt*13);bodyDip=Math.max(0,bodyDip-dt);hurt=Math.max(0,hurt-dt);if(impact){impact.life-=dt;if(impact.life<=0)impact=null;}hit=Math.max(0,hit-dt);punch=Math.max(0,punch-dt);flash-=dt;msgTime-=dt;particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt});particles=particles.filter(p=>p.life>0)}g.save();rect(0,0,1000,590,'#202a25');const dip=reduced?0:Math.sin(Math.PI*(bodyDip/.6));g.translate(500,295);g.rotate((!reduced&&hurt>0&&!bodyDip?Math.sin(hurt*26)*.025:0)+(reduced?0:playerX*.00065));g.scale(1+dip*.06+Math.abs(playerX)*.0012,1+dip*.06+Math.abs(playerX)*.0012);g.translate(-500-playerX*.22,-295+Math.abs(playerX)*.05-dip*105-(reduced?duckAmount*20:duckAmount*100));g.translate((Math.random()-.5)*(reduced?0:shake),(Math.random()-.5)*(reduced?0:shake));if(!drawOfficeBackdrop()){rect(0,0,1000,590,'#202a25');for(let i=0;i<9;i++){rect(i*130,40,3,310,'#344039');rect(i*130+15,100,95,160,'#17211d');for(let j=0;j<4;j++)rect(i*130+25,120+j*32,65,8,'#2c3830')}text('OVERTIME OFFICE · 22:48',500,148,25,'#82916b');rect(0,380,1000,210,'#394332');for(let y of []){rect(0,y,1000,7,'#101a15');rect(0,y,1000,3,'#798368')}officeDetails();}ellipse(500,537,190,27,'#15201966');g.save();g.translate(opponentScreenX(),0);drawOpponent();g.restore();if(typeof drawStoryPortrait==='function')drawStoryPortrait(c);g.save();g.translate(opponentScreenX(),0);drawThreat();g.restore();drawPlayerHands();drawFootwork();if(!inDialogue()){particles.forEach(p=>rect(p.x,p.y,6,6,p.color));drawContact();}g.restore();g.save();if(!inDialogue()){if(hurt>0){g.strokeStyle=`rgba(255,65,35,${hurt})`;g.lineWidth=40;g.strokeRect(0,0,1000,590);}rect(340,568,320,5,'#171d13');rect(340,568,320*Math.min(1,Math.max(0,opening)),5,'#c8b58e');if(tutorial<0)text(opening>0?'공격 기회 · J / K / L':'J / K / L 펀치 · ↓ 숙이기',500,555,13,'#c8b58e');papers.forEach(p=>{g.save();g.translate(p.x,p.y);g.rotate(p.angle);rect(-16,-21,32,42,'#e7e8d6');rect(-10,-10,20,2,'#777f6a');rect(-10,-3,17,2,'#777f6a');g.restore()});if(msgTime>0&&tutorial<0)text(msg,500,450,msg==='COUNTER!'?32:21,'#dfcfac');if(counter>0&&tutorial<0)text('COUNTER · J / K / L',500,185,22,'#c8b58e');if(run&&tutorial>=0){rect(150,485,700,42,'#172019');text(tutorial<lessons.length?lessons[tutorial].label:'선임: 마지막! ↓를 누른 채 S 어퍼컷을 내게 맞혀 봐.',500,512,18,'#dfcfac');}else if(run&&difficulty==='easy'&&attack&&combo.length){text('받아칠 펀치: '+[attack,...combo].map(a=>(a.body?'↓+':'')+actionKeyFor(a)).join(' → '),500,480,20,'#ffffff');}if(flash>0)rect(0,0,1000,590,'#ffffff66');}g.restore();$('#hp').value=hp;$('#ep').value=ep;syncHealthHUD();$('#clock').textContent=difficulty==='easy'?'∞':Math.max(0,Math.ceil(remaining));$('#score').textContent=score;$('#contextHint').hidden=run&&tutorial>=0;$('#contextHint').textContent=crouchStance()?'복부 J/L · 어퍼컷 K':'펀치 J/K/L · 글러브 충돌로 받아치기';$('#status').textContent=paused?'PAUSED':run?(tutorial>=0?'선임과 연습':typeof companyDuelMode!=='undefined'&&companyDuelMode?'DUEL MODE · ROUND '+String(npc+1).padStart(2,'0'):'LIVE · ROUND 01'):'READY TO FIGHT';requestAnimationFrame(frame)}requestAnimationFrame(frame);
+let last=0;function frame(now){let dt=Math.max(0,Math.min((now-last)/1000,.04));last=now;const frozen=stop>0;if(inDialogue())tickDialogue(dt);if(run&&!paused&&!inDialogue())update(dt);if(!paused&&!frozen){enemyBlock=Math.max(0,enemyBlock-dt);if(contact){contact.life-=dt;if(contact.life<=0)contact=null;}papers.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=500*dt;p.angle+=dt*2});shake*=Math.exp(-dt*13);bodyDip=Math.max(0,bodyDip-dt);hurt=Math.max(0,hurt-dt);if(impact){impact.life-=dt;if(impact.life<=0)impact=null;}hit=Math.max(0,hit-dt);punch=Math.max(0,punch-dt);flash-=dt;msgTime-=dt;particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt});particles=particles.filter(p=>p.life>0)}g.save();rect(0,0,1000,590,'#202a25');const dip=reduced?0:Math.sin(Math.PI*(bodyDip/.6));g.translate(500,295);g.rotate((!reduced&&hurt>0&&!bodyDip?Math.sin(hurt*26)*.025:0)+(reduced?0:playerX*.00065));g.scale(1+dip*.06+Math.abs(playerX)*.0012,1+dip*.06+Math.abs(playerX)*.0012);g.translate(-500-playerX*.22,-295+Math.abs(playerX)*.05-dip*105-(reduced?duckAmount*20:duckAmount*100));g.translate((Math.random()-.5)*(reduced?0:shake),(Math.random()-.5)*(reduced?0:shake));if(!drawOfficeBackdrop()){rect(0,0,1000,590,'#202a25');for(let i=0;i<9;i++){rect(i*130,40,3,310,'#344039');rect(i*130+15,100,95,160,'#17211d');for(let j=0;j<4;j++)rect(i*130+25,120+j*32,65,8,'#2c3830')}text('OFFICE RING',500,148,25,'#82916b');rect(0,380,1000,210,'#394332');for(let y of []){rect(0,y,1000,7,'#101a15');rect(0,y,1000,3,'#798368')}officeDetails();}ellipse(500,537,190,27,'#15201966');g.save();g.translate(opponentScreenX(),0);drawOpponent();g.restore();if(typeof drawStoryPortrait==='function')drawStoryPortrait(c);g.save();g.translate(opponentScreenX(),0);drawThreat();g.restore();drawPlayerHands();drawFootwork();if(!inDialogue()){particles.forEach(p=>rect(p.x,p.y,6,6,p.color));drawContact();}g.restore();g.save();if(!inDialogue()){if(hurt>0){g.strokeStyle=`rgba(255,65,35,${hurt})`;g.lineWidth=40;g.strokeRect(0,0,1000,590);}rect(340,568,320,5,'#171d13');rect(340,568,320*Math.min(1,Math.max(0,opening)),5,'#c8b58e');if(tutorial<0)text(opening>0?'공격 기회 · J / K / L':'J / K / L 펀치 · ↓ 숙이기',500,555,13,'#c8b58e');papers.forEach(p=>{g.save();g.translate(p.x,p.y);g.rotate(p.angle);rect(-16,-21,32,42,'#e7e8d6');rect(-10,-10,20,2,'#777f6a');rect(-10,-3,17,2,'#777f6a');g.restore()});if(msgTime>0&&tutorial<0)text(msg,500,450,msg==='COUNTER!'?32:21,'#dfcfac');if(counter>0&&tutorial<0)text('COUNTER · J / K / L',500,185,22,'#c8b58e');if(run&&tutorial>=0){rect(150,485,700,42,'#172019');text(tutorial<lessons.length?lessons[tutorial].label:'선임: 마지막! ↓를 누른 채 S 어퍼컷을 내게 맞혀 봐.',500,512,18,'#dfcfac');}else if(run&&difficulty==='easy'&&attack&&combo.length){text('받아칠 펀치: '+[attack,...combo].map(a=>(a.body?'↓+':'')+actionKeyFor(a)).join(' → '),500,480,20,'#ffffff');}if(flash>0)rect(0,0,1000,590,'#ffffff66');}g.restore();$('#hp').value=hp;$('#ep').value=ep;syncHealthHUD();$('#clock').textContent=difficulty==='easy'?'∞':Math.max(0,Math.ceil(remaining));$('#score').textContent=score;$('#contextHint').hidden=run&&tutorial>=0;$('#contextHint').textContent=crouchStance()?'복부 J/L · 어퍼컷 K':'펀치 J/K/L · 글러브 충돌로 받아치기';$('#status').textContent=paused?'PAUSED':run?(tutorial>=0?'선임과 연습':typeof companyDuelMode!=='undefined'&&companyDuelMode?'DUEL MODE · ROUND '+String(npc+1).padStart(2,'0'):'LIVE · ROUND 01'):'READY TO FIGHT';requestAnimationFrame(frame)}requestAnimationFrame(frame);
 
 function playerHealthMax(){return 10+['easy','normal','hard'].indexOf(difficulty);}
 function syncHealthHUD(){
