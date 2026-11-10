@@ -21,3 +21,21 @@ The body also has project-created five-bone skin weights, garment fitting and
 runtime shoulder/elbow deformation. The unclothed universal base is fitted to
 the game's clothed office characters; it is not an unmodified character scan.
 No MakeHuman application source code is included.
+
+2026-11-11: OFFICE RING adds outfit-dependent long sleeves, garment ease,
+barycentric attachments to the posed chest, a folded hood and inner tee,
+jacket lapels/fronts/shirt/tie and wrist cuffs. These are project-created
+runtime geometry; the original CC0 human topology and attribution are preserved.
+
+2026-11-11 follow-up: clipped head-neck triangles, a smooth runtime neck bridge,
+cloth fold attachments, polo placket, thin silver glasses/pin and hair shading
+are project adaptations. The CC0 source geometry and attribution are retained.
+
+2026-11-11 expression update: small personality-dependent mouth/eyelid vertex
+adjustments and wavy hair volume are runtime project adaptations.
+
+2026-11-11 continuity update: chest pocket and two pen attachments follow
+the posed chest surface. Original CC0 attribution and topology are retained.
+
+2026-11-11: long-parted temple hair strips and hollow gold-hoop geometry
+are OFFICE RING runtime additions. The original CC0 source remains unchanged.

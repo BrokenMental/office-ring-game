@@ -34,7 +34,7 @@ const characterStyles=[
  {faceWidth:79,jaw:17,eyeGap:30,eyeOpen:8,browTilt:0,noseWidth:1.15,mouth:'flat',hair:'crop',glasses:'square',accessory:'tieclip',body:132,suit:'#3b4256'},
  {faceWidth:71,jaw:5,eyeGap:28,eyeOpen:5,browTilt:-4,noseWidth:1.1,mouth:'droop',hair:'receding',glasses:false,accessory:'moustache',body:117,suit:'#56514d'}
 ];
-const trainingCoach={name:'길잡이 선임',intro:'주먹부터 배우고 가자. 깐족대는 동기가 기다린다.'};
+const trainingCoach={name:'길잡이 선임',intro:'혼자 버티느라 고생했다. 첫 대결 전에 주먹 쓰는 법부터 알려줄게.'};
 function activeOpponentLook(){return typeof tutorial!=='undefined'&&tutorial>=0?{...opponentLooks[0],...characterStyles[4],accessory:'whistle',mouth:'grin',suit:'#48665d',glove:'#6b7661',badge:'길잡이 선임',age:32,hair:'crop',hairColor:'#392d26',outfit:'polo',body:110,faceWidth:65,glasses:false,beard:false}:opponentLooks[npc];}
 const opponents=campaignRoster.map((person,index)=>({
  ...person,hint:index<30?'예고된 순서대로 공격 · 큰 준비 동작을 읽으세요':index<65?'고정 패턴에 변형 추가 · 얼굴과 복부를 구분하세요':'자동 조합 공격 · 연타 뒤 빈틈을 노리세요',
@@ -50,6 +50,7 @@ const opponentLooks=opponents.map((o,i)=>({
  outfit:i<10?['hoodie','shirt','polo'][i%3]:i<20?['polo','shirt'][i%2]:'suit',glasses:i%4===1,beard:i>=40&&i%5===2,
  ...characterStyles[o.rank==='최대 주주'?9:personalities.findIndex(p=>o.name.startsWith(p[0]))],
  hairColor:i===99?'#bfc1b6':i<64?['#24272c','#493229','#302926'][i%3]:'#797b77',
+ ...(i===0?{suit:'#344f58',hairColor:'#24272c'}:i===1?{suit:'#777184',hairColor:'#493229'}:i===3?{suit:'#695044',hairColor:'#302724'}:{}),
  ...(i===99?{suit:'#756652',accessory:'lapel',glasses:'rimless',clothPattern:'pinstripe',mouth:'smirk'}:{}),
  badge:o.rank,title:'ROUND '+(i+1)+' · '+o.name
 }));
@@ -91,12 +92,14 @@ const hairNames={spiky:'삐죽 세운 짧은 머리',messy:'헝클어진 머리'
 function appearanceOf(look){
  const face=look.faceWidth>75?'넓은 얼굴':look.jaw>10?'각진 턱':look.faceWidth<62?'갸름한 얼굴':'부드러운 턱선';
  const detail=look.glasses?(look.glasses==='square'?'사각 안경':look.glasses==='round'?'둥근 안경':'얇은 안경'):look.accessory==='headset'?'업무용 헤드셋':look.accessory==='earring'?'작은 귀걸이':'안경 없는 눈매';
- return [face,hairNames[look.hair],detail].join(' · ');
+ const pens=look.accessory==='pens'?'가슴 포켓의 펜 두 개':null;
+ const outfit={hoodie:'후드티·안쪽 셔츠',shirt:'칼라 셔츠',polo:'폴로 셔츠',suit:'재킷·셔츠·넥타이'}[look.outfit];
+ return [face,hairNames[look.hair],detail,...(look.glasses&&look.accessory==='headset'?['업무용 헤드셋']:[]),pens,outfit].filter(Boolean).join(' · ');
 }
 opponents.forEach((o,i)=>{
  const trait=personalities.findIndex(p=>o.name.startsWith(p[0])),look=opponentLooks[i];
  const [title,origin,change]=pastLives[Math.max(0,trait)];
- o.history=i===99?{title:'회사를 숫자로만 보던 사람',origin:'첫 회사를 인수할 때, 직원들의 야근을 비용 절감이라는 숫자로만 계산했다.',change:'합병을 거듭해 최대 주주가 된 뒤에도 직원 이름은 외우지 않았다. 대신 전 직원의 시간을 자기 소유라고 여겼다.',incident:'지분 100%를 건 사내 결투 조항을 만든 것도 이 사람이다. 아무도 여기까지 오지 못할 거라 믿었다.'}:{title:o.department+' · '+title,origin,change,incident:departmentIncidents[i%10]+', '+o.department+'의 '+o.rank+'인 그는 “'+o.intro+'”라는 말을 남겼다. 그날 떠넘겨진 일의 마지막 수신자가 나였다.'};
+ o.history=i===99?{title:'회사를 숫자로만 보던 사람',origin:'첫 회사를 인수할 때, 직원들의 야근을 비용 절감이라는 숫자로만 계산했다.',change:'합병을 거듭해 최대 주주가 된 뒤에도 직원 이름은 외우지 않았다. 대신 전 직원의 시간을 자기 소유라고 여겼다.',incident:'고용계약서 마지막 장에 지분 100%를 건 사내 결투 조항을 작게 넣은 것도 이 사람이다. 아무도 그 조항을 찾아 여기까지 오지 못할 거라 믿었다.'}:{title:o.department+' · '+title,origin,change,incident:departmentIncidents[i%10]+', '+o.department+'의 '+o.rank+'인 그는 “'+o.intro+'”라는 말을 남겼다. 그날 떠넘겨진 일의 마지막 수신자가 나였다.'};
  if(i!==99)o.history.change+=' '+careerMemories[careerGroups.findIndex(([rank])=>rank===o.rank)];
  o.appearance=appearanceOf(look);
 });

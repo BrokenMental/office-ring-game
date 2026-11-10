@@ -2,23 +2,23 @@
 const human3D=(()=>{
  const state={available:false,error:null,frames:0};
  if(typeof WebGLRenderingContext==='undefined')return state;
- const canvas=document.createElement('canvas');canvas.width=1000;canvas.height=590;
+ const canvas=document.createElement('canvas');const pixelScale=typeof innerWidth==='number'&&innerWidth>=900?1.5:1;canvas.width=1000*pixelScale;canvas.height=590*pixelScale;
  const gl=canvas.getContext('webgl',{alpha:true,antialias:true,premultipliedAlpha:true,preserveDrawingBuffer:true});
  if(!gl)return state;
  const vertex=`
  attribute vec3 position;attribute vec3 normal;attribute vec2 uv;
  uniform mat4 model;uniform mat3 normalMatrix;
- varying vec3 vNormal;varying vec3 vPosition;varying vec2 vUv;
+ varying vec3 vNormal;varying vec3 vPosition;varying vec3 vLocal;varying vec2 vUv;
  void main(){
   vec4 p=model*vec4(position,1.);
-  vUv=uv;vPosition=p.xyz;vNormal=normalize(normalMatrix*normal);
+  vUv=uv;vLocal=position;vPosition=p.xyz;vNormal=normalize(normalMatrix*normal);
   float n=25.,f=1200.;
   gl_Position=vec4(600.*p.x/1000.,-600.*p.y/590.+(1.-510./590.)*p.z,((f+n)/(f-n))*p.z-2.*f*n/(f-n),p.z);
  }`;
  const fragment=`
  precision mediump float;
  uniform vec3 color;uniform float material;uniform float textured;uniform sampler2D skinMap;
- varying vec3 vNormal;varying vec3 vPosition;varying vec2 vUv;
+ varying vec3 vNormal;varying vec3 vPosition;varying vec3 vLocal;varying vec2 vUv;
  void main(){
   vec3 n=normalize(vNormal),view=normalize(-vPosition);
   vec3 key=normalize(vec3(-.6,-.7,-1.)),fill=normalize(vec3(.8,-.15,-.4));
@@ -27,11 +27,23 @@ const human3D=(()=>{
   float rim=pow(1.-max(0.,dot(n,view)),3.);
   float grain=sin(vPosition.x*6.7+sin(vPosition.y*9.))*sin(vPosition.z*7.3+vPosition.y*4.);
   vec3 base=mix(color,texture2D(skinMap,vUv).rgb*color,textured);
-  vec3 shade=base*(.42+.60*diffuse+.16*bounce);
-  shade+=vec3(.96,.88,.73)*spec*(material>2.5?.28:material<.5?.09:.035);
+  // Soft illustrated value groups and warm skin shadows, rather than plastic gloss.
+  float lightBand=mix(.34,.62,smoothstep(.12,.25,diffuse))+ .27*smoothstep(.58,.72,diffuse);
+  vec3 shadowTint=material<.5?vec3(.91,.77,.73):vec3(.78,.85,.93);
+  if(material<.5&&vLocal.z<242.&&vLocal.y<24.){
+   float lips=exp(-pow(vLocal.x/17.,4.)-pow((vLocal.y-7.)/4.,2.));
+   float cheek=exp(-pow((abs(vLocal.x)-29.)/15.,2.)-pow((vLocal.y+11.)/17.,2.));
+   base=mix(base,base*vec3(.74,.50,.48),lips*.46);
+   base=mix(base,base*vec3(1.06,.84,.79),cheek*.24);
+  }
+  vec3 shade=base*mix(shadowTint,vec3(1.),smoothstep(.18,.7,diffuse))*(mix(.34+.60*diffuse,lightBand,.40)+.13*bounce);
+  float edge=pow(1.-max(0.,dot(n,view)),4.);
+  shade*=1.-edge*(material>3.5?.36:material<.5?.15:.23);
+  shade+=vec3(.96,.88,.73)*spec*(material>3.5?.06:material>2.5?.28:material<.5?.045:.025);
   shade+=vec3(.27,.42,.50)*rim*.15;
   if(material<.5)shade+=vec3(.12,.035,.015)*pow(max(0.,dot(-n,key)),2.)*.25;
   shade*=1.+grain*(material>1.5?.008:.014);
+  if(material>3.5)shade*=.96+.06*(.5+.5*sin(vPosition.x*1.7+vPosition.y*.25+sin(vPosition.z*.12)*2.));
   gl_FragColor=vec4(shade,1.);
  }`;
  function shader(kind,source){const s=gl.createShader(kind);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;}
@@ -95,7 +107,7 @@ const human3D=(()=>{
   ball(lerp(a,b,.5),[r1,Math.hypot(...sub(a,b))*.55,r2],col,mat,[x,y,z],world);
  }
  function line(points,r,col,mat=0,world=true){for(let i=0;i<points.length-1;i++)bone(points[i],points[i+1],r,r,col,mat,world);}
- let cachedLook=null,headMesh=null,hairMesh=null,eyes=[];
+ let cachedLook=null,headMesh=null,hairMesh=null,eyes=[],peerFeatures=null;
  const dynamicBuffers=new Map();
  let preparedBody=null;
  function bodyScale(look){return Math.max(.9,Math.min(1.15,look.body/115));}
@@ -108,15 +120,22 @@ const human3D=(()=>{
   const points=new Float32Array(positions.length),ns=new Float32Array(normals.length),groups=[[],[]],front=[];
   for(let i=0;i<count;i++){
    const p=fitBodyPoint(positions.slice(i*3,i*3+3),look),n=unit([normals[i*3]/bodyScale(look),normals[i*3+1],normals[i*3+2]]);
-   const ease=materials[i]?3:0;for(let k=0;k<3;k++){points[i*3+k]=p[k]+n[k]*ease;ns[i*3+k]=n[k];}
+   const dressed=!(p[1]<52&&Math.abs(p[0])<39);
+   const ease=dressed?(look.outfit==='hoodie'?6:look.outfit==='suit'?4.5:3):0;for(let k=0;k<3;k++){points[i*3+k]=p[k]+n[k]*ease;ns[i*3+k]=n[k];}
   }
-  for(let t=0;t<indices.length;t+=3){const ids=indices.slice(t,t+3),cloth=ids.reduce((sum,i)=>sum+materials[i],0)>=2?1:0;groups[cloth].push(...ids);}
+  for(let t=0;t<indices.length;t+=3){const ids=indices.slice(t,t+3),centre=ids.map(i=>Array.from(points.subarray(i*3,i*3+3))).reduce((a,p)=>a.map((v,k)=>v+p[k]/3),[0,0,0]);
+   const longSleeve=look.outfit==='hoodie'||look.outfit==='suit'||look.outfit==='shirt';
+   const neck=ids.every(i=>points[i*3+1]<44&&Math.abs(points[i*3])<40);
+   const neckline=centre[1]<70&&Math.abs(centre[0])<65;
+   const cloth=(longSleeve||neckline)?!neck:ids.reduce((sum,i)=>sum+materials[i],0)>=2;
+   if(!cloth&&neckline)continue; // A smooth neck bridge replaces overlapping skin edges.
+   groups[cloth?1:0].push(...ids);}
   for(let y=45;y<=320;y+=10){
    let z=Infinity;for(let i=0;i<count;i++)if(Math.abs(points[i*3])<18&&Math.abs(points[i*3+1]-y)<14)z=Math.min(z,points[i*3+2]);
    front.push(Number.isFinite(z)?z:front.at(-1)||280);
   }
   const bind={};for(const side of [-1,1]){bind[side]={};for(const name of ['shoulder','elbow','wrist'])bind[side][name]=fitBodyPoint(joints[side][name],look);}
-  preparedBody={points,ns,groups,weights,bind,front,posed:new Float32Array(points.length),posedNormals:new Float32Array(points.length),arrays:groups.map(ids=>new Float32Array(ids.length*6))};
+  preparedBody={points,ns,groups,weights,bind,front,posed:new Float32Array(points.length),posedNormals:new Float32Array(points.length),arrays:groups.map(ids=>new Float32Array(ids.length*6)),surfaceCache:new Map()};
   state.bodyPose=preparedBody.posed;
  }
  function bodyFront(y){const i=Math.max(0,Math.min(preparedBody.front.length-1,(y-45)/10)),a=Math.floor(i),b=Math.min(a+1,preparedBody.front.length-1);return preparedBody.front[a]+(preparedBody.front[b]-preparedBody.front[a])*(i-a)-2;}
@@ -185,31 +204,122 @@ const human3D=(()=>{
   draw(mesh,[0,0,0],[1,1,1],color,material,identity,world);
  }
  function prepare(look){
-  const key=JSON.stringify([look.faceWidth,look.jaw,look.noseWidth,look.hair,look.body,!!headAsset]);if(cachedLook===key)return;cachedLook=key;
+  const peer=look===opponentLooks[0];
+  const key=JSON.stringify([peer,look.faceWidth,look.jaw,look.noseWidth,look.hair,look.body,look.outfit,look.mouth,look.eyeOpen,!!headAsset]);if(cachedLook===key)return;cachedLook=key;
   for(const mesh of [headMesh,hairMesh])if(mesh){gl.deleteBuffer(mesh.buffer);if(mesh.uv)gl.deleteBuffer(mesh.uv);}
+  peerFeatures=null;state.faceProfile=peer?'peer-0':'base';
   prepareBody(look);
   if(headAsset){
    const vertices=[],hair=[];
    eyes=headAsset.eyes.map(eye=>({...eye,x:eye.x*look.faceWidth/65,y:eye.y-18}));
    const {indices,positions,normals}=headAsset;
    for(let t=0;t<indices.length;t+=3){
-    const ids=indices.slice(t,t+3);if(ids.some(i=>positions[i*3+1]<-1.8))continue;
+    const ids=indices.slice(t,t+3),faceVertices=[];
     const scalp=ids.every(i=>{
      const x=positions[i*3],y=positions[i*3+1],front=positions[i*3+2]>.4;
-     const hairline=look.hair==='receding'?3.6:look.hair==='crop'?2.95:look.hair==='longpart'?2.4:2.75;
+     const hairline=look.hair==='receding'?3.6:look.hair==='crop'?2.95:look.hair==='longpart'?2.4:look.hair==='wave'?2.55:2.75;
      return y>(front?hairline+(look.hair==='part'||look.hair==='longpart'?x*.13:0):look.hair==='longpart'?1.25:1.95);
     });
     for(const i of ids){
      const rawX=positions[i*3],rawY=positions[i*3+1],neck=rawY<-1?Math.max(.5,1-(Math.abs(rawX)-.9)*.7):1;
      const jawMask=Math.max(0,1-Math.abs(rawY+.25)/1.1),noseMask=Math.max(0,1-Math.abs(rawX)/.6)*Math.max(0,1-Math.abs(rawY-.75)/.8)*Math.max(0,positions[i*3+2]-1.6);
-     const x=rawX*30*(look.faceWidth/65)*neck*(1+(look.jaw-5)*.004*jawMask)*(1+((look.noseWidth||1)-1)*noseMask),y=-9-positions[i*3+1]*30,z=300-positions[i*3+2]*30-((look.noseWidth||1)-1)*noseMask*5,n=[normals[i*3],-normals[i*3+1],-normals[i*3+2]];
-     vertices.push(x,y,z,...n);
+     let x=rawX*30*(look.faceWidth/65)*neck*(1+(look.jaw-5)*.004*jawMask)*(1+((look.noseWidth||1)-1)*noseMask),y=-9-positions[i*3+1]*30,z=300-positions[i*3+2]*30-((look.noseWidth||1)-1)*noseMask*5,n=[normals[i*3],-normals[i*3+1],-normals[i*3+2]];
+     const lipMask=Math.exp(-Math.pow((rawY+.48)/.32,2)-Math.pow(rawX/.9,6))*Math.max(0,Math.min(1,(positions[i*3+2]-2.2)/.4));
+     const corner=Math.min(1,Math.abs(rawX)/.55),mouth=look.mouth;
+     const lift=mouth==='grin'?-2.6*corner:mouth==='smirk'?-3*Math.max(0,Math.min(1,rawX/.55)):mouth==='droop'?1.8*corner:0;
+     y+=lift*lipMask;if(mouth==='grin')x*=1+.065*lipMask;
+     const eyeMask=Math.exp(-Math.pow((Math.abs(rawX)-.67)/.28,2)-Math.pow((rawY-1.27)/.25,2))*Math.max(0,Math.min(1,positions[i*3+2]-1.3));
+     y-=((look.eyeOpen||8)-8)*.15*Math.sign(rawY-1.27)*eyeMask;
+     if(peer){
+      const front=Math.max(0,Math.min(1,(positions[i*3+2]-1.2)/1.3));
+      const cheek=Math.exp(-Math.pow((rawY-.05)/.75,2))*Math.pow(Math.min(1,Math.abs(rawX)/1.1),2);
+      const chin=Math.exp(-Math.pow((rawY+1.05)/.43,2));
+      x*=1-.065*cheek-.13*chin;
+      y+=chin*2.2+Math.max(0,rawY-2.5)*6;
+      // A sharper bridge, restrained lips and lifted corner match the comic's smirk.
+      const bridge=Math.exp(-Math.pow(rawX/.28,2)-Math.pow((rawY-.80)/.70,2));
+      z-=bridge*2.8*front;z+=lipMask*1.4;
+      y-=lipMask*Math.max(0,rawX/.7)*2.8;
+      const lid=Math.exp(-Math.pow((Math.abs(rawX)-.67)/.35,2)-Math.pow((rawY-1.28)/.30,2));
+      y+=lid*(rawY>1.27?1.5:-.6)*front;
+     }
+     if(peer&&y<-75)y=-75+(y+75)*.78;
+     faceVertices.push({p:[x,y,z],n});
      if(scalp){
-      const crown=Math.max(0,rawY-2.7),style=look.hair==='spiky'?10+Math.sin(rawX*13)*5:look.hair==='curly'?8+Math.sin(rawX*17+rawY*12)*4:look.hair==='messy'?7+Math.sin(rawX*9+rawY*5)*5:look.hair==='wave'?9+Math.sin(rawX*5)*3:look.hair==='crop'?.8:look.hair==='slick'?1.5:3;
-      const lift=1.25+crown*style;hair.push(x+n[0]*lift,y+n[1]*lift,z+n[2]*lift,...n);
+      const crown=Math.max(0,rawY-2.7),style=peer?3:look.hair==='spiky'?10+Math.sin(rawX*13)*5:look.hair==='curly'?8+Math.sin(rawX*17+rawY*12)*4:look.hair==='messy'?7+Math.sin(rawX*9+rawY*5)*5:look.hair==='wave'?9+Math.sin(rawX*5)*3:look.hair==='crop'?.8:look.hair==='slick'?1.5:3;
+      const lift=1.25+crown*style+(look.hair==='wave'?Math.max(0,n[0])*2.5:0);hair.push(x+n[0]*lift,y+n[1]*lift,z+n[2]*lift,...n);
      }
     }
+    // Clip crossing neck triangles at one plane instead of dropping them:
+    // dropping whole triangles left tooth-shaped skin edges above collars.
+    const clipped=[];
+    for(let j=0;j<faceVertices.length;j++){
+     const a=faceVertices[j],b=faceVertices[(j+1)%faceVertices.length],inside=a.p[1]<=44,nextInside=b.p[1]<=44;
+     if(inside)clipped.push(a);
+     if(inside!==nextInside){const f=(44-a.p[1])/(b.p[1]-a.p[1]);clipped.push({p:lerp(a.p,b.p,f),n:unit(lerp(a.n,b.n,f))});}
+    }
+    for(let j=1;j<clipped.length-1;j++)for(const v of [clipped[0],clipped[j],clipped[j+1]])vertices.push(...v.p,...v.n);
    }
+   if(look.hair==='longpart'){
+    const rows=[[-20,-96,265,14],[-34,-82,263,12],[-43,-61,267,9],[-49,-39,275,7],[-48,-20,281,2]];
+    const edge=([x,y,z,w],side)=>[(x+side*w)*look.faceWidth/65,y,z];
+    for(let j=0;j<rows.length-1;j++){
+     const a=edge(rows[j],-1),b=edge(rows[j],1),c=edge(rows[j+1],-1),d=edge(rows[j+1],1),normal=unit(cross(sub(b,a),sub(c,a)));
+     for(const q of [a,c,b,b,c,d])hair.push(...q,...(normal[2]>0?mul(normal,-1):normal));
+    }
+   }
+   // Layered tapered locks give each hairstyle a readable silhouette and fringe.
+   // Built once per look; all locks remain attached to the head transform.
+   const lock=(a,b,c,width,curl=0)=>{
+    const rings=Array.from({length:10},(_,i)=>{
+     const u=i/9,v=1-u,p=a.map((x,k)=>v*v*x+2*v*u*b[k]+u*u*c[k]);
+     p[0]+=curl*Math.sin(u*Math.PI*2);p[1]-=curl*Math.sin(u*Math.PI);
+     const tangent=unit(add(mul(sub(b,a),2*v),mul(sub(c,b),2*u))),axis=unit(cross([0,0,1],tangent)),depth=unit(cross(axis,tangent));
+     const w=Math.max(.12,width*Math.pow(1-u,.65)),d=Math.max(.1,w*.18);
+     return Array.from({length:9},(_,j)=>{const q=j/8*Math.PI*2,n=unit(add(mul(axis,Math.cos(q)/w),mul(depth,Math.sin(q)/d)));return {p:add(p,add(mul(axis,Math.cos(q)*w),mul(depth,Math.sin(q)*d))),n};});
+    });
+    for(let i=0;i<9;i++)for(let j=0;j<8;j++)for(const v of [rings[i][j],rings[i+1][j],rings[i][j+1],rings[i+1][j],rings[i+1][j+1],rings[i][j+1]])hair.push(...v.p,...v.n);
+   };
+   const style=look.hair,fit=look.faceWidth/65;
+   for(let i=0;i<(peer?0:15);i++){
+    const x=(i-7)*6.0,arch=x*x*.013,random=Math.sin(i*7.13);
+    if(style==='receding'&&Math.abs(x)<28)continue;
+    const short=style==='crop'||style==='receding',slick=style==='slick';
+    const sweep=style==='part'||style==='longpart'||style==='wave'?-16:slick?8:random*9;
+    const tipY=short?-95+arch:slick?-103+arch:style==='spiky'?-119+arch+random*8:style==='curly'?-93+arch+random*3:style==='messy'?-81+arch+random*5:style==='longpart'?-80+arch+random*4:-84+arch+random*4;
+    lock([x*fit,-96+arch,258],[(x+sweep)*fit,-122+arch+(short?18:0),slick?207:218],[(x+sweep*1.3)*fit,tipY,slick?246:short?218:style==='curly'?218:208],short?5.2:style==='curly'?9:10,style==='curly'?4:style==='messy'?2:0);
+   }
+   if(peer){
+    // Broad, overlapping root masses with short swept tips, rather than a tall mohawk.
+    for(const layer of [0,1])for(let i=0;i<11;i++){
+     const x=(i-5)*7.8,arch=x*x*.011,variation=Math.sin(i*4.7+layer*2);
+     lock([x*fit,-94+arch,layer?280:251],[(x+7+variation*3)*fit,-117+arch,layer?258:222],[(x+12+variation*4)*fit,-111+arch+variation*5,layer?239:214],layer?9:8.6,1.3);
+    }
+    // Short temple sections stay connected to the scalp and leave the hoop visible.
+    for(const side of [-1,1])for(let i=0;i<3;i++)lock([side*(37+i*3)*fit,-77+i*5,267],[side*(47+i)*fit,-86+i*4,248],[side*(48+i)*fit,-69+i*6,249],5.5);
+    for(let i=1;i<hair.length;i+=6)if(hair[i]<-75)hair[i]=-75+(hair[i]+75)*.78;
+    const normalSums=new Map(),vertexKey=i=>vertices.slice(i,i+3).map(v=>v.toFixed(4)).join(',');
+    for(let i=0;i<vertices.length;i+=18){
+     const a=vertices.slice(i,i+3),b=vertices.slice(i+6,i+9),c=vertices.slice(i+12,i+15);let normal=cross(sub(b,a),sub(c,a));
+     if(normal.reduce((sum,v,k)=>sum+v*vertices[i+3+k],0)<0)normal=mul(normal,-1);
+     for(const j of [i,i+6,i+12]){const key=vertexKey(j);normalSums.set(key,add(normalSums.get(key)||[0,0,0],normal));}
+    }
+    for(let i=0;i<vertices.length;i+=6){const normal=unit(normalSums.get(vertexKey(i)));for(let k=0;k<3;k++)vertices[i+3+k]=normal[k];}
+    // Barycentric sampling attaches lip and nose accents to the sculpted face.
+    const surface=(x,y)=>{
+     let z=Infinity;
+     for(let i=0;i<vertices.length;i+=18){
+      const a=vertices.slice(i,i+3),b=vertices.slice(i+6,i+9),c=vertices.slice(i+12,i+15),den=(b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1]);
+      if(Math.abs(den)<1e-6)continue;
+      const u=((b[1]-c[1])*(x-c[0])+(c[0]-b[0])*(y-c[1]))/den,v=((c[1]-a[1])*(x-c[0])+(a[0]-c[0])*(y-c[1]))/den,w=1-u-v;
+      if(Math.min(u,v,w)>=-1e-5)z=Math.min(z,u*a[2]+v*b[2]+w*c[2]);
+     }
+     return [x,y,z-.65];
+    };
+    peerFeatures={mouth:[[-16,-3],[-9,-2],[0,-3],[9,-5],[17,-8]].map(p=>surface(...p)),lip:[[-9,1],[0,1],[9,-1]].map(p=>surface(...p))};
+    state.featureFinite=Object.values(peerFeatures).flat(2).every(Number.isFinite);
+   }else state.featureFinite=true;
+   state.headFinite=vertices.every(Number.isFinite)&&hair.every(Number.isFinite);
    headMesh=makeMesh(vertices);
    hairMesh=makeMesh(hair);
   }
@@ -246,62 +356,146 @@ const human3D=(()=>{
  }
  function face(look){
    draw(headMesh,[0,0,0],[1,1,1],look.skinMid,0);
-   draw(hairMesh,[0,0,0],[1,1,1],look.hairColor,2);
+   draw(hairMesh,[0,0,0],[1,1,1],look.hairColor,4);
    const blink=hit>0||ep<=0||Math.sin(t*.8)>.998;
    for(const eye of eyes){
     const [rx,ry,rz]=eye.radius;
     if(blink){ball([eye.x,eye.y,eye.z-rz+.5],[rx*.95,ry*.35,1.2],look.skinMid,0);continue;}
-    ball([eye.x,eye.y,eye.z],[rx,ry,rz],'#aaa99f',0);
+    ball([eye.x,eye.y,eye.z],[rx,ry,rz],'#d5cbb5',0);
     const gaze=unit([-eye.x,0,-eye.z]),iris=add([eye.x,eye.y,eye.z],mul(gaze,rz-.15));
-    ball(iris,[3.9,3.9,.6],'#4a4432',2);ball(add(iris,[0,0,-.55]),[1.7,1.9,.3],'#152023',2);
+    ball(iris,[4.5,4.5,.6],'#4a4432',2);ball(add(iris,[0,0,-.55]),[1.7,1.9,.3],'#152023',2);
     ball(add(iris,[-.8,-1,-.9]),[.3,.3,.1],'#bdbbae',2);
+    if(peerFeatures&&!blink){
+     const side=Math.sign(eye.x),z=eye.z-rz-.6;
+     line([[-8,.5],[-3,-2.2],[3,-2.8],[8,-1.5]].map(([x,y])=>[eye.x+x,eye.y+y-side*x*.09,z+Math.abs(x)*.10]),.65,'#46392f',2);
+    }
     const browZ=eye.z-rz-3;
     const tilt=(look.browTilt||0)*Math.sign(eye.x)*.42;
-    line([[eye.x-rx,eye.y-8-tilt,browZ+1],[eye.x,eye.y-10,browZ],[eye.x+rx,eye.y-8+tilt,browZ+1]],look.age>45?1.5:1.1,look.hairColor,2);
+    line([[eye.x-rx,eye.y-8-tilt,browZ+1],[eye.x,eye.y-10,browZ],[eye.x+rx,eye.y-8+tilt,browZ+1]],look.age>45?2.1:1.7,look.hairColor,2);
+   }
+   if(peerFeatures){
+    line(peerFeatures.mouth,.65,toneColor(look.skinMid,-55),0);
+    line(peerFeatures.lip,.45,toneColor(look.skinMid,13),0);
    }
    if(look.glasses){
     for(const eye of eyes){
      const z=eye.z-eye.radius[2]-3,points=[];
-     if(look.glasses==='square')for(const [x,y] of [[-14,-9],[14,-9],[14,9],[-14,9],[-14,-9]])points.push([eye.x+x,eye.y+y,z]);
+     if(look.glasses==='square'||look.glasses==='rimless')for(const [x,y] of (look.glasses==='rimless'?[[-11,-7],[11,-7],[14,-4],[14,4],[11,7],[-11,7],[-14,4],[-14,-4],[-11,-7]]:[[-14,-9],[14,-9],[14,9],[-14,9],[-14,-9]]))points.push([eye.x+x,eye.y+y,z]);
      else for(let j=0;j<=24;j++){const angle=j/24*Math.PI*2;points.push([eye.x+Math.cos(angle)*14,eye.y+Math.sin(angle)*10,z]);}
-     line(points,look.glasses==='rimless'?.55:1.1,'#30383b',2);
+     line(points,look.glasses==='rimless'?.45:1.1,look.glasses==='rimless'?'#9caaa9':'#30383b',2);
      const side=Math.sign(eye.x);line([[eye.x+side*14,eye.y,z],[side*look.faceWidth*.78,eye.y+2,275]],.8,'#30383b',2);
     }
     line([[-6,eyes[0].y,231],[0,eyes[0].y-2,228],[6,eyes[0].y,231]],.8,'#414b50',2);
    }
-   if(look.accessory==='earring')ball([look.faceWidth*.79,-15,276],[3,4,1.3],'#c2b28c',2);
-   if(look.accessory==='headset'){for(const side of [-1,1])ball([side*look.faceWidth*.83,-32,278],[7,15,10],'#27343b',2);line([[look.faceWidth*.83,-20,275],[43,-3,244],[24,0,228]],1.6,'#27343b',2);}
+   if(look.accessory==='moustache')line([[-16,0,222],[-8,-4,215],[0,-1,213],[8,-4,215],[16,0,222]],2.2,look.hairColor,4);
+   if(look.accessory==='earring'){const hoop=Array.from({length:21},(_,j)=>{const a=j/20*Math.PI*2;return [look.faceWidth*.79+Math.cos(a)*3,-15+Math.sin(a)*4,275];});loft('earHoop',hoop,hoop.map(()=>.7),hoop.map(()=>.7),'#c2b28c',2);}
+   if(look.accessory==='headset'){line([[-look.faceWidth*.82,-43,282],[-look.faceWidth*.7,-89,290],[0,-112,291],[look.faceWidth*.7,-89,290],[look.faceWidth*.82,-43,282]],2.4,'#27343b',2);for(const side of [-1,1])ball([side*look.faceWidth*.83,-32,278],[7,15,10],'#27343b',2);line([[look.faceWidth*.83,-20,275],[43,-3,244],[24,0,228]],1.6,'#27343b',2);}
 
  }
- function begin(){gl.viewport(0,0,1000,590);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);}
+ // Locate the visible bind surface once; barycentric interpolation then follows
+ // the SAME skinned vertices as the chest, including arm/shoulder deformation.
+ function garmentSurface(x,y,lift=2){
+  const d=preparedBody,key=x.toFixed(3)+','+y.toFixed(3);let sample=d.surfaceCache.get(key);
+  if(!sample){
+   let depth=Infinity;
+   for(let j=0;j<bodyAsset.indices.length;j+=3){
+    const ids=bodyAsset.indices.slice(j,j+3),p=ids.map(i=>Array.from(d.points.subarray(i*3,i*3+3)));
+    const den=(p[1][1]-p[2][1])*(p[0][0]-p[2][0])+(p[2][0]-p[1][0])*(p[0][1]-p[2][1]);if(Math.abs(den)<.00001)continue;
+    const a=((p[1][1]-p[2][1])*(x-p[2][0])+(p[2][0]-p[1][0])*(y-p[2][1]))/den;
+    const b=((p[2][1]-p[0][1])*(x-p[2][0])+(p[0][0]-p[2][0])*(y-p[2][1]))/den,c=1-a-b;
+    if(Math.min(a,b,c)<-.0001)continue;
+    const z=a*p[0][2]+b*p[1][2]+c*p[2][2];if(z<depth){depth=z;sample={ids,weights:[a,b,c]};}
+   }
+   sample??={point:[x,y,bodyFront(y)]};d.surfaceCache.set(key,sample);
+  }
+  if(sample.point)return add(sample.point,[0,0,-lift]);
+  let p=[0,0,0],n=[0,0,0];sample.ids.forEach((id,j)=>{p=add(p,mul(Array.from(d.posed.subarray(id*3,id*3+3)),sample.weights[j]));n=add(n,mul(Array.from(d.posedNormals.subarray(id*3,id*3+3)),sample.weights[j]));});
+  return add(p,mul(unit(n),lift));
+ }
+ function fabricMesh(key,triangles,color){
+  const vertices=[];for(const tri of triangles){const n=unit(cross(sub(tri[1],tri[0]),sub(tri[2],tri[0])));for(const p of tri)vertices.push(...p,...(n[2]>0?mul(n,-1):n));}
+  let mesh=dynamicBuffers.get(key);if(!mesh){mesh={buffer:gl.createBuffer()};dynamicBuffers.set(key,mesh);}
+  mesh.count=vertices.length/6;gl.bindBuffer(gl.ARRAY_BUFFER,mesh.buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.DYNAMIC_DRAW);draw(mesh,[0,0,0],[1,1,1],color,1);
+  state.garmentFinite=state.garmentFinite&&vertices.every(Number.isFinite);state.garmentVertices+=mesh.count;
+ }
+ function fabricPanel(key,rows,color,lift=2){
+  const triangles=[],rings=rows.map(([y,left,right,raise=0])=>Array.from({length:9},(_,j)=>garmentSurface(left+(right-left)*j/8,y,lift+raise)));
+  for(let i=0;i<rings.length-1;i++)for(let j=0;j<8;j++)triangles.push([rings[i][j],rings[i+1][j],rings[i][j+1]],[rings[i+1][j],rings[i+1][j+1],rings[i][j+1]]);
+  fabricMesh(key,triangles,color);
+ }
+ function garmentLine(points,r,color){line(points.map(([x,y,lift=3])=>garmentSurface(x,y,lift)),r,color,1);}
+ function drawGarments(look,arms){
+  state.garmentFinite=true;state.garmentVertices=0;state.garmentOutfit=look.outfit;
+  const suit=look.outfit==='suit',hood=look.outfit==='hoodie',shirt=suit?'#d4d6cf':hood?'#d3d1c5':look.suit;
+  const fit=bodyScale(look),neckFit=look.faceWidth/65;
+  if(hood){
+   // A folded, open hood drapes behind the neck, with a rolled lip at the front.
+   const centres=Array.from({length:33},(_,i)=>{const a=.48+i/32*(Math.PI*2-.96);return [Math.sin(a)*52*neckFit,65-43*(1-Math.cos(a))/2,314-Math.cos(a)*36];});
+   const folds=centres.map((_,i)=>5+9*Math.sin(i/32*Math.PI));
+   loft('foldedHood',centres,folds,folds.map(v=>v*1.15),look.suit,1);
+   loft('teeNeck',[[0,44,302],[0,50,302],[0,58,303]],[35,38,40].map(v=>v*neckFit),[30,32,33],shirt,1);
+   fabricPanel('innerTee',[[58,-24,24],[73,-22,22],[88,-15,15],[98,-2,2]],shirt,2.5);
+   for(const side of [-1,1]){
+    garmentLine([[side*23,57,5],[side*31,76,4],[side*19,96,4]],2.8,toneColor(look.suit,15));
+    garmentLine([[side*29,76,6],[side*31,102,6],[side*28,132,6]],1.3,'#d0cdbd');
+    ball(garmentSurface(side*28,132,6),[2,3,2],'#b3ac97',2);
+   }
+   fabricPanel('kangarooPocket',[[193,-45*fit,45*fit],[201,-57*fit,57*fit],[237,-54*fit,54*fit],[244,-43*fit,43*fit]],toneColor(look.suit,5),3);
+   for(const side of [-1,1])garmentLine([[side*45*fit,195,5],[side*31*fit,215,5],[side*28*fit,232,5]],1.1,toneColor(look.suit,-20));
+   garmentLine([[-43*fit,244,5],[0,247,5],[43*fit,244,5]],.8,toneColor(look.suit,-17));
+  }else{
+   loft('shirtNeck',[[0,40,302],[0,48,302],[0,55,304]],[35,38,41].map(x=>x*neckFit),[30,32,34],shirt,1);
+   if(suit)fabricPanel('suitShirt',[[49,-24,24],[68,-33,33],[93,-28,28],[125,-19,19],[164,-5,5],[181,-1,1]],shirt,2.5);
+   for(const side of [-1,1]){
+    fabricPanel('shirtCollar'+side,[[52,side*2,side*22,3],[65,side*8,side*35,4],[86,side*19,side*25,2]],toneColor(shirt,10),4);
+    if(suit){
+     fabricPanel('jacketLapel'+side,[[57,side*34,side*47,2],[77,side*28,side*61,5],[92,side*34,side*50,4],[106,side*22,side*59,5],[148,side*12,side*34,3],[186,side*2,side*12,1]],toneColor(look.suit,15),5);
+     garmentLine([[side*35,58,9],[side*29,77,10],[side*37,92,9],[side*24,108,10],[side*14,148,8],[side*3,184,7]],.65,toneColor(look.suit,-18));
+     garmentLine([[side*3,185,5],[side*6,227,5],[side*13,276,5]],.8,toneColor(look.suit,-15));
+     garmentLine([[side*47,177,6],[side*76,180,6]],1.5,toneColor(look.suit,-24));
+    }
+   }
+   if(suit){
+    fabricPanel('tie',[[76,-3,3],[84,-6,6],[91,-3,3],[141,-6,6],[155,0,.1]],'#684849',7);
+    ball(garmentSurface(0,190,7),[3,3,1.8],toneColor(look.suit,28),2);
+   }else if(look.outfit==='polo'){
+    fabricPanel('poloPlacket',[[65,-5,5],[77,-5,5],[101,-4,4]],toneColor(shirt,-10),3);
+    for(const y of [82,96])ball(garmentSurface(0,y,5),[1.8,1.8,1],toneColor(shirt,32),2);
+   }else for(let y=101;y<245;y+=27)ball(garmentSurface(0,y,3),[2,2,1.2],toneColor(shirt,-30),2);
+  }
+  if(look.outfit==='shirt'){
+   fabricPanel('shirtPlacket',[[87,-4,4],[164,-4,4],[254,-4,4]],toneColor(look.suit,7),2.8);
+   garmentLine([[-4,91,4],[-4,164,4],[-4,251,4]],.45,toneColor(look.suit,-18));
+   for(let y=101;y<245;y+=27)ball(garmentSurface(0,y,5),[2,2,1.1],toneColor(look.suit,-25),2);
+  }
+  for(const side of [-1,1]){
+   garmentLine([[side*74*fit,105,2.5],[side*80*fit,145,2.5],[side*74*fit,193,2.5]],.45,toneColor(look.suit,-14));
+   for(const y of [157,181,214])fabricPanel('drape'+side+y,[[y,side*39*fit,side*40*fit],[y+7,side*56*fit,side*59*fit],[y+10,side*72*fit,side*73*fit]],toneColor(look.suit,-7),1.3);
+  }
+  if(look.accessory==='pens'){
+   fabricPanel('penPocket',[[113,30*fit,60*fit],[145,31*fit,59*fit]],toneColor(look.suit,4),2.5);
+   garmentLine([[30*fit,113,5],[45*fit,115,5],[60*fit,113,5]],.65,toneColor(look.suit,-18));
+   for(const [x,color] of [[39,'#243d5d'],[48,'#bac1b9']])garmentLine([[x*fit,96,5],[x*fit,113,5]],1.3,color);
+  }
+  if(look.accessory==='lapel')ball(garmentSurface(44*fit,112,6),[5,1.8,1.2],'#afb8b5',2);
+  // Shallow cloth ridges follow the same posed chest surface as the garment.
+  for(const side of [-1,1])fabricPanel('chestFold'+side,[[132,side*65*fit,side*66*fit],[147,side*52*fit,side*55*fit],[167,side*62*fit,side*63*fit]],toneColor(look.suit,2),2);
+  if(hood||suit||look.outfit==='shirt')for(const side of [-1,1]){
+   const {elbow,wrist}=arms[side];
+   const cuff=hood?toneColor(look.suit,-8):suit?'#d1d2c8':toneColor(look.suit,12);
+   loft('npcCuff'+side,[.88,.92,.98,1.01].map(u=>lerp(elbow,wrist,u)),[13.5,14.2,13,11.5],[12,12.8,11.5,10],cuff,1,true,.2);
+   if(hood)for(const u of [.91,.94,.97])loft('cuffRib'+side+u,[u,u+.006].map(v=>lerp(elbow,wrist,v)),[14,14],[12.6,12.6],toneColor(cuff,7),1);
+  }
+ }
+ function begin(){gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);}
  state.renderOpponent=()=>{
   begin();const look=activeOpponentLook();prepare(look);
   const body=npcBodyMotion(),sway=hit?reactionSide*Math.sin(Math.PI*Math.min(1,hit/.36))*18*reactionPower:Math.sin(t*2)*1.5;
   root={x:body.x+sway,y:body.y+koPose*165,z:koPose*90,twist:body.twist+koPose*.48,yaw:(attack?attack.side*.12*body.drive:0)};
   const arms=opponentArms(look);drawBody(look,arms);
-  // Garment details follow the chest surface of the continuous skinned body.
-  const shirt=look.outfit==='suit'?'#c5c8c0':look.suit;
-  face(look);
-  const neckFit=look.faceWidth/65;
-  loft('garmentCollar',[[0,38,307],[0,43,307],[0,54,310]],[32,38,46].map(x=>x*neckFit),[29,31,35],shirt,1);
-  if(look.outfit==='hoodie'){
-   for(const side of [-1,1])line([[side*21,69,bodyFront(69)-2],[side*24,103,bodyFront(103)-2],[side*26,132,bodyFront(132)-2]],1.2,'#bfc1b2',1);
-  }else{
-   for(const side of [-1,1]){
-    const vertices=[];const points=[[side*19,56],[side*40,73],[side*18,95],[0,69]].map(([x,y])=>[x,y,bodyFront(y)-3]);
-    for(const i of [0,1,2,0,2,3])vertices.push(...points[i],0,0,-1);
-    let mesh=dynamicBuffers.get('collar'+side);if(!mesh){mesh={buffer:gl.createBuffer()};dynamicBuffers.set('collar'+side,mesh);}mesh.count=6;gl.bindBuffer(gl.ARRAY_BUFFER,mesh.buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.DYNAMIC_DRAW);draw(mesh,[0,0,0],[1,1,1],shirt,1);
-   }
-  }
-  if(look.outfit==='suit'){
-   const points=[[0,82,4],[2,98,7],[3,151,6],[4,174,0]],vertices=[];
-   for(let i=0;i<points.length-1;i++){
-    const [x,y,w]=points[i],[nx,ny,nw]=points[i+1],a=[x-w,y,bodyFront(y)-3],b=[x+w,y,bodyFront(y)-3],c=[nx-nw,ny,bodyFront(ny)-3],d=[nx+nw,ny,bodyFront(ny)-3];
-    for(const p of [a,b,c,b,d,c])vertices.push(...p,0,0,-1);
-   }
-   let mesh=dynamicBuffers.get('tieRibbon');if(!mesh){mesh={buffer:gl.createBuffer()};dynamicBuffers.set('tieRibbon',mesh);}mesh.count=vertices.length/6;gl.bindBuffer(gl.ARRAY_BUFFER,mesh.buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.DYNAMIC_DRAW);draw(mesh,[0,0,0],[1,1,1],'#5b3938',1);
-  }
-  if(look.outfit!=='hoodie')for(let y=99;y<245;y+=27)ball([0,y,bodyFront(y)],[2,2,1.3],toneColor(shirt,-30),2);
+  // One smooth neck bridges the clipped head and shirt opening.
+  loft('npcNeck',[[0,18,305],[0,28,305],[0,40,306],[0,52,307]],[27,28,30,32].map(v=>v*look.faceWidth/65),[27,28,29,31],look.skinMid,0);
+  drawGarments(look,arms);face(look);
   for(const side of [-1,1]){
    const {wrist,center}=arms[side];
    const back=unit(sub(wrist,center)),basis=gloveBasis({x:back[0],y:back[1],z:back[2]},{x:0,y:-1,z:0});
@@ -309,7 +503,7 @@ const human3D=(()=>{
     ball(center,[12,24,9],look.skinMid);for(let j=0;j<4;j++)bone(add(center,[-7+j*5,12,-2]),add(center,[-7+j*5,31-(j%2)*3,-1]),2.6,2.8,look.skinMid);
    }else glove(center,[basis.x,basis.y,basis.z].reduce((o,v,i)=>(o[['x','y','z'][i]]=[v.x,v.y,v.z],o),{}),side,look.glove,true,.8);
   }
-  g.drawImage(canvas,0,0);state.frames++;
+  g.drawImage(canvas,0,0,1000,590);state.frames++;
  };
  state.renderPlayer=()=>{
   if(inDialogue())return;state.playerJoints={};begin();root={x:0,y:0,z:0,twist:0,yaw:0};
@@ -327,7 +521,7 @@ const human3D=(()=>{
    arm('player'+hand,shoulder,elbow,wrist,'#3d505a','#b78d70',false);
    glove(center,basis,hand,'#6b443a',false,1);
   }
-  g.drawImage(canvas,0,0);
+  g.drawImage(canvas,0,0,1000,590);
  };
  canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();state.available=false;state.error='WebGL context lost';});
  Object.defineProperty(state,'active',{get:()=>state.available&&state.headReady&&state.bodyReady&&state.skinReady});

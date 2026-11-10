@@ -5,6 +5,9 @@ function drawOfficeBackdrop(){
  g.drawImage(officeBackdrop,0,0,1000,590);
  // Keep foreground gloves and timing marks distinct from the environment.
  const veil=g.createLinearGradient(0,0,0,590);veil.addColorStop(0,'#0b17252b');veil.addColorStop(.55,'#0b17250d');veil.addColorStop(1,'#08121d55');g.fillStyle=veil;g.fillRect(0,0,1000,590);
+ if(typeof companyDuelMode!=='undefined'&&companyDuelMode){
+  const alarm=g.createLinearGradient(0,0,1000,0);alarm.addColorStop(0,'#9d2d2829');alarm.addColorStop(.25,'#9d2d2800');alarm.addColorStop(.75,'#9d2d2800');alarm.addColorStop(1,'#9d2d2829');g.fillStyle=alarm;g.fillRect(0,0,1000,590);
+ }
  return true;
 }
 // Canvas layers share the game's drawing helpers; no external image assets.
@@ -57,4 +60,14 @@ function drawContact(){
  const count=strong?12:6,radius=(strong?40:22)+(1-life/.3)*15;
  for(let i=0;i<count;i++){const angle=i*Math.PI*2/count;g.beginPath();g.moveTo(x+Math.cos(angle)*radius,y+Math.sin(angle)*radius);g.lineTo(x+Math.cos(angle)*(radius+(strong?35:14)),y+Math.sin(angle)*(radius+(strong?35:14)));g.stroke();}
  if(guarded)text('CLASH',x,y-45,16,'#d1cdb3');g.restore();
+}
+
+function playCompanySiren(){
+ if(muted||paused)return;
+ try{
+  audio??=new AudioContext();audio.resume();const tone=audio.createOscillator(),gain=audio.createGain(),now=audio.currentTime;
+  tone.type='triangle';for(let i=0;i<=8;i++)tone.frequency.linearRampToValueAtTime(i%2?880:440,now+i*.3);
+  gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(.08,now+.08);gain.gain.setValueAtTime(.08,now+2.2);gain.gain.linearRampToValueAtTime(0,now+2.5);
+  tone.connect(gain).connect(audio.destination);activeSounds.add(tone);tone.onended=()=>{activeSounds.delete(tone);tone.disconnect();gain.disconnect();};tone.start();tone.stop(now+2.5);
+ }catch{}
 }
