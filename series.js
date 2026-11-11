@@ -46,8 +46,8 @@ function roundFinished(){
   $('#resultMeta').innerHTML+=`<span>누적 ${series.total.toLocaleString()}점</span>`;
   $('#difficulty').disabled=true;
  }else{
-  series.complete=true;$('#difficulty').disabled=false;$('#title').textContent='최대 주주 KO! 이제 이 회사는 내 회사다.';
-  $('#desc').textContent=`${opponents.length}명 정리 완료 · 첫 사내 규정: 정시 퇴근 · 총 전투 ${Math.ceil(series.seconds)}초 · 카운터 ${series.stats.counters}회`;
+  series.complete=true;$('#difficulty').disabled=false;$('#title').textContent='지분 100% 양도. 이제 퇴근에 허락은 필요 없다.';
+  $('#desc').textContent=`${opponents.length}라운드 승리 · 첫 사내 규정: 정시 퇴근, 회식은 선택, 성과에는 만든 사람의 이름 · 총 전투 ${Math.ceil(series.seconds)}초 · 카운터 ${series.stats.counters}회`;
   $('#results').innerHTML=[['총 적중',series.stats.hits],['총 충돌',series.stats.guards],['정확한 충돌',series.stats.perfects],['회피',series.stats.dodges],['카운터',series.stats.counters]].map(([label,value])=>`<div><b>${value}</b><span>${label}</span></div>`).join('');
   const key='officeRingCareer100Best:'+difficulty,old=readSaved(key,0),previous=Number.isFinite(old)?old:0;
   try{localStorage.setItem(key,JSON.stringify(Math.max(previous,series.total)));}catch{}

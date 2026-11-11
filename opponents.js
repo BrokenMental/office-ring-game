@@ -62,24 +62,7 @@ function appearanceOf(look){
  const outfit={hoodie:'후드티·안쪽 셔츠',shirt:'칼라 셔츠',polo:'폴로 셔츠',suit:'재킷·셔츠·넥타이'}[look.outfit];
  return [face,hairNames[look.hair],detail,...(look.glasses&&look.accessory==='headset'?['업무용 헤드셋']:[]),pens,outfit].filter(Boolean).join(' · ');
 }
-const shortHistories=[
- ['동료를 놀렸다가 임원의 칭찬을 받은 뒤, 웃기려면 누군가를 깎아내려야 한다고 믿게 됐다.','이제는 내 작은 실수도 사람들 앞에서 흉내 내며 비웃는다.'],
- ['답장이 늦었다고 혼난 뒤, 메신저 응답 속도에 집착하게 됐다.','이제는 내게 쉴 새 없이 메시지를 보내고 즉시 답하라고 다그친다.'],
- ['함께 쓴 보고서에서 이름이 빠진 뒤, 공로를 먼저 차지하려 들었다.','이제는 내가 만든 결과물에서도 내 이름을 지운다.'],
- ['회식에서 거래를 따내 칭찬받은 뒤, 술자리가 곧 실력이라고 믿게 됐다.','이제는 퇴근한 나까지 불러내 끝까지 술을 마시게 한다.'],
- ['아픈 동료를 대신해 일하다가, 부탁하면 남이 해준다는 걸 배웠다.','이제는 자기 업무를 내 책상에 놓고 먼저 퇴근한다.'],
- ['우연히 들은 팀 개편 소식으로 위기를 피한 뒤, 소문을 힘으로 삼았다.','이제는 내 이야기도 부풀려 뒤에서 퍼뜨린다.'],
- ['오탈자 하나로 오래 혼난 뒤, 작은 흠도 용납하지 못하게 됐다.','이제는 내 완성본을 끝없이 돌려보내며 처음부터 다시 하라고 한다.'],
- ['상사의 구두 지시를 따랐다 혼자 징계받은 뒤, 책임부터 피하게 됐다.','이제는 나에게 시킨 일도 자기는 지시한 적 없다고 잡아뗀다.'],
- ['야근 수당을 규정 때문에 받지 못한 뒤, 자기에게 유리한 예외만 찾게 됐다.','이제는 내게만 규정을 들이대고 자기 일에는 예외를 적용한다.'],
- ['야근하던 자신보다 먼저 퇴근한 동료가 승진하자, 회사에 오래 남는 데 집착했다.','이제는 내 퇴근 시간을 감시하며 눈치를 준다.']
-];
-opponents.forEach((o,i)=>{
- const trait=personalities.findIndex(p=>o.name.startsWith(p[0])),look=opponentLooks[i];
- const [change,incident]=shortHistories[Math.max(0,trait)];
- o.history=i===99?{title:'최대 주주',origin:'이 회사의 최대 주주는 사원들의 시간을 자기 소유로 여겼다.',change:'회사를 사들이며 직원보다 숫자만 보게 됐다.',incident:'고용계약서 마지막 장에 결투 조항을 넣고도, 내가 여기까지 올 줄은 몰랐다.'}:{title:o.name,origin:o.rank==='동기'?'처음에는 서로 일을 도와주며 친하게 지내던 동료였다.':'처음에는 '+o.department+'에서 나를 도와주던 '+o.rank+'이었다.',change,incident};
- o.appearance=appearanceOf(look);
-});
+opponents.forEach((o,i)=>{o.appearance=appearanceOf(opponentLooks[i]);});
 function patternForOpponent(){
  const tier=ep/epMax>.75?0:ep/epMax>.375?1:2,rank=npc/(opponents.length-1);
  const specs={A:{lane:-1,side:-1,body:false},C:{lane:0,side:1,body:false},D:{lane:1,side:1,body:false},B:{lane:-1,side:-1,body:true},S:{lane:1,side:1,body:true}};

@@ -17,7 +17,7 @@ const human3D=(()=>{
  }`;
  const fragment=`
  precision mediump float;
- uniform vec3 color;uniform float material;uniform float textured;uniform sampler2D skinMap;
+ uniform vec3 color;uniform float material;uniform float textured;uniform float toon;uniform sampler2D skinMap;
  varying vec3 vNormal;varying vec3 vPosition;varying vec3 vLocal;varying vec2 vUv;
  void main(){
   vec3 n=normalize(vNormal),view=normalize(-vPosition);
@@ -44,6 +44,11 @@ const human3D=(()=>{
   if(material<.5)shade+=vec3(.12,.035,.015)*pow(max(0.,dot(-n,key)),2.)*.25;
   shade*=1.+grain*(material>1.5?.008:.014);
   if(material>3.5)shade*=.96+.06*(.5+.5*sin(vPosition.x*1.7+vPosition.y*.25+sin(vPosition.z*.12)*2.));
+  if(toon>.5){
+   float band=.70+.16*smoothstep(.06,.38,diffuse)+.14*smoothstep(.46,.82,diffuse);
+   shade=color*band*mix(vec3(.95,.91,.87),vec3(1.),smoothstep(.08,.65,diffuse));
+   shade*=1.-smoothstep(.62,.94,edge)*.24;
+  }
   gl_FragColor=vec4(shade,1.);
  }`;
  function shader(kind,source){const s=gl.createShader(kind);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;}
@@ -51,7 +56,7 @@ const human3D=(()=>{
  try{program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,vertex));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,fragment));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));}
  catch(error){state.error=String(error);return state;}
  gl.useProgram(program);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.CULL_FACE);
- const loc={};for(const name of ['model','normalMatrix','color','material','textured','skinMap'])loc[name]=gl.getUniformLocation(program,name);
+ const loc={};for(const name of ['model','normalMatrix','color','material','textured','skinMap','toon'])loc[name]=gl.getUniformLocation(program,name);
  const pos=gl.getAttribLocation(program,'position'),nor=gl.getAttribLocation(program,'normal'),uvLoc=gl.getAttribLocation(program,'uv');
  const skinTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,skinTexture);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([220,193,172,255]));
  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
@@ -95,7 +100,7 @@ const human3D=(()=>{
   const c=world?transform(center):center,axes=basis.map(a=>world?axisTransform(a):a);
   const m=new Float32Array([axes[0][0]*scale[0],axes[0][1]*scale[0],axes[0][2]*scale[0],0,axes[1][0]*scale[1],axes[1][1]*scale[1],axes[1][2]*scale[1],0,axes[2][0]*scale[2],axes[2][1]*scale[2],axes[2][2]*scale[2],0,...c,1]);
   const nm=new Float32Array(axes.flatMap((a,i)=>a.map(x=>x/Math.max(.01,scale[i]))));
-  gl.uniformMatrix4fv(loc.model,false,m);gl.uniformMatrix3fv(loc.normalMatrix,false,nm);gl.uniform3fv(loc.color,rgb(color));gl.uniform1f(loc.material,material);
+  gl.uniformMatrix4fv(loc.model,false,m);gl.uniformMatrix3fv(loc.normalMatrix,false,nm);gl.uniform3fv(loc.color,rgb(color));gl.uniform1f(loc.material,material);gl.uniform1f(loc.toon,state.toon?1:0);
   gl.bindBuffer(gl.ARRAY_BUFFER,mesh.buffer);gl.enableVertexAttribArray(pos);gl.enableVertexAttribArray(nor);gl.vertexAttribPointer(pos,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(nor,3,gl.FLOAT,false,24,12);
   gl.uniform1f(loc.textured,mesh.uv?(mesh.textureWeight??1):0);gl.uniform1i(loc.skinMap,0);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,skinTexture);
   if(mesh.uv){gl.bindBuffer(gl.ARRAY_BUFFER,mesh.uv);gl.enableVertexAttribArray(uvLoc);gl.vertexAttribPointer(uvLoc,2,gl.FLOAT,false,8,0);}else{gl.disableVertexAttribArray(uvLoc);gl.vertexAttrib2f(uvLoc,0,0);}
@@ -204,20 +209,20 @@ const human3D=(()=>{
   draw(mesh,[0,0,0],[1,1,1],color,material,identity,world);
  }
  function prepare(look){
-  const peer=look===opponentLooks[0];
-  const key=JSON.stringify([peer,look.faceWidth,look.jaw,look.noseWidth,look.hair,look.body,look.outfit,look.mouth,look.eyeOpen,!!headAsset]);if(cachedLook===key)return;cachedLook=key;
+  const peer=look===opponentLooks[0],messenger=look===opponentLooks[1],coach=look.badge==='길잡이 선임';
+  const key=JSON.stringify([peer,messenger,coach,look.faceWidth,look.jaw,look.noseWidth,look.hair,look.body,look.outfit,look.mouth,look.eyeOpen,!!headAsset]);if(cachedLook===key)return;cachedLook=key;
   for(const mesh of [headMesh,hairMesh])if(mesh){gl.deleteBuffer(mesh.buffer);if(mesh.uv)gl.deleteBuffer(mesh.uv);}
-  peerFeatures=null;state.faceProfile=peer?'peer-0':'base';
+  peerFeatures=null;state.faceProfile=peer?'peer-0':messenger?'peer-1':coach?'coach':'base';
   prepareBody(look);
   if(headAsset){
    const vertices=[],hair=[];
-   eyes=headAsset.eyes.map(eye=>({...eye,x:eye.x*look.faceWidth/65,y:eye.y-18}));
+   eyes=headAsset.eyes.map(eye=>({...eye,x:eye.x*look.faceWidth/65,y:eye.y-18,radius:coach?[eye.radius[0],eye.radius[1]*.72,eye.radius[2]]:eye.radius}));
    const {indices,positions,normals}=headAsset;
    for(let t=0;t<indices.length;t+=3){
     const ids=indices.slice(t,t+3),faceVertices=[];
     const scalp=ids.every(i=>{
      const x=positions[i*3],y=positions[i*3+1],front=positions[i*3+2]>.4;
-     const hairline=look.hair==='receding'?3.6:look.hair==='crop'?2.95:look.hair==='longpart'?2.4:look.hair==='wave'?2.55:2.75;
+     const hairline=coach?2.35:look.hair==='receding'?3.6:look.hair==='crop'?2.95:look.hair==='longpart'?2.4:look.hair==='wave'?2.55:2.75;
      return y>(front?hairline+(look.hair==='part'||look.hair==='longpart'?x*.13:0):look.hair==='longpart'?1.25:1.95);
     });
     for(const i of ids){
@@ -243,11 +248,30 @@ const human3D=(()=>{
       const lid=Math.exp(-Math.pow((Math.abs(rawX)-.67)/.35,2)-Math.pow((rawY-1.28)/.30,2));
       y+=lid*(rawY>1.27?1.5:-.6)*front;
      }
+     if(messenger){
+      const front=Math.max(0,Math.min(1,(positions[i*3+2]-1.2)/1.3));
+      const chin=Math.exp(-Math.pow((rawY+1.02)/.55,2));
+      const cheek=Math.exp(-Math.pow((rawY-.1)/.8,2))*Math.min(1,Math.abs(rawX));
+      x*=1-.10*chin-.035*cheek;
+      y-=chin*1.8;
+      z+=lipMask*2.2;
+      z-=1.5*front*Math.exp(-Math.pow(rawX/.3,2)-Math.pow((rawY-.8)/.65,2));
+     }
+     if(coach){
+      const chin=Math.exp(-Math.pow((rawY+1.05)/.5,2));
+      const cheek=Math.exp(-Math.pow((rawY-.05)/.8,2))*Math.min(1,Math.abs(rawX));
+      const jawSide=Math.exp(-Math.pow((rawY+.65)/.65,2))*Math.min(1,Math.abs(rawX)/.8);
+      x*=1+.16*jawSide+.07*chin+.015*cheek;
+      y-=chin*1.5;
+      // Flatten protruding lips into the surrounding muzzle; keep the smile crease.
+      z+=lipMask*5.5;
+      z-=Math.exp(-Math.pow(rawX/.30,2)-Math.pow((rawY-.85)/.65,2))*1.8;
+     }
      if(peer&&y<-75)y=-75+(y+75)*.78;
      faceVertices.push({p:[x,y,z],n});
      if(scalp){
       const crown=Math.max(0,rawY-2.7),style=peer?3:look.hair==='spiky'?10+Math.sin(rawX*13)*5:look.hair==='curly'?8+Math.sin(rawX*17+rawY*12)*4:look.hair==='messy'?7+Math.sin(rawX*9+rawY*5)*5:look.hair==='wave'?9+Math.sin(rawX*5)*3:look.hair==='crop'?.8:look.hair==='slick'?1.5:3;
-      const lift=1.25+crown*style+(look.hair==='wave'?Math.max(0,n[0])*2.5:0);hair.push(x+n[0]*lift,y+n[1]*lift,z+n[2]*lift,...n);
+      const lift=(coach?3.2:1.25)+crown*style+(look.hair==='wave'?Math.max(0,n[0])*2.5:0);hair.push(x+n[0]*lift,y+n[1]*lift,z+n[2]*lift,...n);
      }
     }
     // Clip crossing neck triangles at one plane instead of dropping them:
@@ -281,7 +305,7 @@ const human3D=(()=>{
     for(let i=0;i<9;i++)for(let j=0;j<8;j++)for(const v of [rings[i][j],rings[i+1][j],rings[i][j+1],rings[i+1][j],rings[i+1][j+1],rings[i][j+1]])hair.push(...v.p,...v.n);
    };
    const style=look.hair,fit=look.faceWidth/65;
-   for(let i=0;i<(peer?0:15);i++){
+   for(let i=0;i<(peer||messenger||coach?0:15);i++){
     const x=(i-7)*6.0,arch=x*x*.013,random=Math.sin(i*7.13);
     if(style==='receding'&&Math.abs(x)<28)continue;
     const short=style==='crop'||style==='receding',slick=style==='slick';
@@ -298,6 +322,30 @@ const human3D=(()=>{
     // Short temple sections stay connected to the scalp and leave the hoop visible.
     for(const side of [-1,1])for(let i=0;i<3;i++)lock([side*(37+i*3)*fit,-77+i*5,267],[side*(47+i)*fit,-86+i*4,248],[side*(48+i)*fit,-69+i*6,249],5.5);
     for(let i=1;i<hair.length;i+=6)if(hair[i]<-75)hair[i]=-75+(hair[i]+75)*.78;
+   }
+   if(coach){
+    // Keep the cap continuous; a few shallow swept ridges lie on the scalp.
+    for(let i=0;i<9;i++){
+     const x=(i-4)*8,arch=x*x*.011;
+     lock([x*fit,-93+arch,252],[(x+5)*fit,-101+arch,232],
+      [(x+9)*fit,-84+arch,225],5.0,0);
+    }
+   }
+   if(messenger){
+    // Overlapping waves cover the forehead; fine tips break up the outer silhouette.
+    for(const layer of [0,1,2])for(let i=0;i<15;i++){
+     const x=(i-7)*6.3,arch=x*x*.011,v=Math.sin(i*3.7+layer*1.9);
+     const sweep=x<8?-19:17;
+     lock([x,-97+arch,258-layer*14],
+      [x+sweep*.25,-119+arch+v*6,220-layer*5],
+      [x+sweep,-79+arch+v*10+(layer===2?10:0),220-layer*4],
+      10-layer*.9,3);
+    }
+    for(const side of [-1,1])for(let i=0;i<5;i++)
+     lock([side*(38+i*2),-83+i*4,269],[side*(53+i),-74+i*5,251],
+      [side*(49+i),-48+i*3,263],5,1.8);
+   }
+   if(peer||messenger||coach){
     const normalSums=new Map(),vertexKey=i=>vertices.slice(i,i+3).map(v=>v.toFixed(4)).join(',');
     for(let i=0;i<vertices.length;i+=18){
      const a=vertices.slice(i,i+3),b=vertices.slice(i+6,i+9),c=vertices.slice(i+12,i+15);let normal=cross(sub(b,a),sub(c,a));
@@ -316,7 +364,11 @@ const human3D=(()=>{
      }
      return [x,y,z-.65];
     };
-    peerFeatures={mouth:[[-16,-3],[-9,-2],[0,-3],[9,-5],[17,-8]].map(p=>surface(...p)),lip:[[-9,1],[0,1],[9,-1]].map(p=>surface(...p))};
+    peerFeatures=coach
+     ?{mouth:[[-18,-4],[-10,-1],[0,0],[10,-1],[18,-5]].map(p=>surface(...p)),lip:[[-7,3],[0,3.5],[7,3]].map(p=>surface(...p))}
+     :messenger
+     ?{mouth:[[-14,-3],[-7,-4],[0,-3],[7,-4],[14,-3]].map(p=>surface(...p)),lip:[[-8,1],[0,2],[8,1]].map(p=>surface(...p))}
+     :{mouth:[[-16,-3],[-9,-2],[0,-3],[9,-5],[17,-8]].map(p=>surface(...p)),lip:[[-9,1],[0,1],[9,-1]].map(p=>surface(...p))};
     state.featureFinite=Object.values(peerFeatures).flat(2).every(Number.isFinite);
    }else state.featureFinite=true;
    state.headFinite=vertices.every(Number.isFinite)&&hair.every(Number.isFinite);
@@ -355,6 +407,7 @@ const human3D=(()=>{
   line([local([-24,22,22]),local([0,27,27]),local([24,22,22])],.65,'#432e28',2,world);
  }
  function face(look){
+   const messenger=look===opponentLooks[1];
    draw(headMesh,[0,0,0],[1,1,1],look.skinMid,0);
    draw(hairMesh,[0,0,0],[1,1,1],look.hairColor,4);
    const blink=hit>0||ep<=0||Math.sin(t*.8)>.998;
@@ -374,22 +427,31 @@ const human3D=(()=>{
     line([[eye.x-rx,eye.y-8-tilt,browZ+1],[eye.x,eye.y-10,browZ],[eye.x+rx,eye.y-8+tilt,browZ+1]],look.age>45?2.1:1.7,look.hairColor,2);
    }
    if(peerFeatures){
-    line(peerFeatures.mouth,.65,toneColor(look.skinMid,-55),0);
-    line(peerFeatures.lip,.45,toneColor(look.skinMid,13),0);
+    line(peerFeatures.mouth,state.faceProfile==='coach'?.45:.65,toneColor(look.skinMid,state.faceProfile==='coach'?-38:-55),0);
+    if(state.faceProfile!=='coach')line(peerFeatures.lip,.45,toneColor(look.skinMid,13),0);
    }
    if(look.glasses){
     for(const eye of eyes){
-     const z=eye.z-eye.radius[2]-3,points=[];
+     const z=eye.z-eye.radius[2]-(messenger?12:3),points=[];
      if(look.glasses==='square'||look.glasses==='rimless')for(const [x,y] of (look.glasses==='rimless'?[[-11,-7],[11,-7],[14,-4],[14,4],[11,7],[-11,7],[-14,4],[-14,-4],[-11,-7]]:[[-14,-9],[14,-9],[14,9],[-14,9],[-14,-9]]))points.push([eye.x+x,eye.y+y,z]);
-     else for(let j=0;j<=24;j++){const angle=j/24*Math.PI*2;points.push([eye.x+Math.cos(angle)*14,eye.y+Math.sin(angle)*10,z]);}
-     line(points,look.glasses==='rimless'?.45:1.1,look.glasses==='rimless'?'#9caaa9':'#30383b',2);
-     const side=Math.sign(eye.x);line([[eye.x+side*14,eye.y,z],[side*look.faceWidth*.78,eye.y+2,275]],.8,'#30383b',2);
+     else for(let j=0;j<=32;j++){const angle=j/32*Math.PI*2;points.push([eye.x+Math.cos(angle)*(messenger?16:14),eye.y+Math.sin(angle)*(messenger?14:10),z]);}
+     line(points,look.glasses==='rimless'?.45:messenger?.7:1.1,look.glasses==='rimless'?'#9caaa9':'#30383b',2);
+     const side=Math.sign(eye.x);line([[eye.x+side*(messenger?16:14),eye.y,z],[side*look.faceWidth*.78,eye.y+2,275]],.8,'#30383b',2);
     }
-    line([[-6,eyes[0].y,231],[0,eyes[0].y-2,228],[6,eyes[0].y,231]],.8,'#414b50',2);
+    line(messenger?[[-4,eyes[0].y,222],[0,eyes[0].y-3,218],[4,eyes[0].y,222]]:[[-6,eyes[0].y,231],[0,eyes[0].y-2,228],[6,eyes[0].y,231]],.8,'#414b50',2);
    }
    if(look.accessory==='moustache')line([[-16,0,222],[-8,-4,215],[0,-1,213],[8,-4,215],[16,0,222]],2.2,look.hairColor,4);
    if(look.accessory==='earring'){const hoop=Array.from({length:21},(_,j)=>{const a=j/20*Math.PI*2;return [look.faceWidth*.79+Math.cos(a)*3,-15+Math.sin(a)*4,275];});loft('earHoop',hoop,hoop.map(()=>.7),hoop.map(()=>.7),'#c2b28c',2);}
-   if(look.accessory==='headset'){line([[-look.faceWidth*.82,-43,282],[-look.faceWidth*.7,-89,290],[0,-112,291],[look.faceWidth*.7,-89,290],[look.faceWidth*.82,-43,282]],2.4,'#27343b',2);for(const side of [-1,1])ball([side*look.faceWidth*.83,-32,278],[7,15,10],'#27343b',2);line([[look.faceWidth*.83,-20,275],[43,-3,244],[24,0,228]],1.6,'#27343b',2);}
+   if(messenger){
+    const band=Array.from({length:25},(_,i)=>{const a=i/24*Math.PI;return [Math.cos(a)*55,-35-Math.sin(a)*72,282];});
+    line(band,2.6,'#20282d',2);
+    for(const side of [-1,1]){
+     ball([side*54,-33,276],[8,14,10],'#171f24',2);
+     ball([side*58,-33,273],[4.5,10,7],'#394249',2);
+    }
+    line([[54,-25,272],[54,-12,258],[45,-1,240],[32,6,222]],1.35,'#20282d',2);
+    ball([30,6,221],[5,2.7,3],'#171f24',2);
+   }else if(look.accessory==='headset'){line([[-look.faceWidth*.82,-43,282],[-look.faceWidth*.7,-89,290],[0,-112,291],[look.faceWidth*.7,-89,290],[look.faceWidth*.82,-43,282]],2.4,'#27343b',2);for(const side of [-1,1])ball([side*look.faceWidth*.83,-32,278],[7,15,10],'#27343b',2);line([[look.faceWidth*.83,-20,275],[43,-3,244],[24,0,228]],1.6,'#27343b',2);}
 
  }
  // Locate the visible bind surface once; barycentric interpolation then follows
@@ -489,7 +551,7 @@ const human3D=(()=>{
  }
  function begin(){gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);}
  state.renderOpponent=()=>{
-  begin();const look=activeOpponentLook();prepare(look);
+  begin();const look=activeOpponentLook();prepare(look);state.toon=state.faceProfile==='coach';
   const body=npcBodyMotion(),sway=hit?reactionSide*Math.sin(Math.PI*Math.min(1,hit/.36))*18*reactionPower:Math.sin(t*2)*1.5;
   root={x:body.x+sway,y:body.y+koPose*165,z:koPose*90,twist:body.twist+koPose*.48,yaw:(attack?attack.side*.12*body.drive:0)};
   const arms=opponentArms(look);drawBody(look,arms);
@@ -506,7 +568,7 @@ const human3D=(()=>{
   g.drawImage(canvas,0,0,1000,590);state.frames++;
  };
  state.renderPlayer=()=>{
-  if(inDialogue())return;state.playerJoints={};begin();root={x:0,y:0,z:0,twist:0,yaw:0};
+  if(inDialogue())return;state.toon=false;state.playerJoints={};begin();root={x:0,y:0,z:0,twist:0,yaw:0};
   for(const hand of [-1,1]){
    const pose=playerHandPose(hand),depth=140+95*pose.reach;
    const center=[(pose.x-500)*depth/300,(pose.y-255)*depth/300,depth];

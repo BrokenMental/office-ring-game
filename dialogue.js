@@ -4,7 +4,7 @@ let dialogue={active:false,index:0,revealed:0,lines:[]};
 let introEnabled=true;
 const seenIntros=new Set();
 // Character-specific origin art for eight peers; every other line gets contextual art.
-const storyIllustrations={0:{2:{src:'assets/story/peer-origin.png',characterId:'peer-0',alt:'입사 첫날 실수한 동료를 보고, 그를 흉내 내 임원의 칭찬을 얻은 깐족왕 동기의 과거 세 장면'}},1:{0:{src:'assets/story/messenger-origin.png',characterId:'peer-1',alt:'메신저 답장이 늦어 질책받은 수습 동기가 알림 감시에 매달리게 된 과거 세 장면'}},2:{0:{src:'assets/story/credit-origin.png',characterId:'peer-2',alt:'공동 보고서에서 이름이 빠진 동기가 남의 공로까지 가져가게 된 과거 세 장면'}},3:{0:{src:'assets/story/dinner-origin.png',characterId:'peer-3',alt:'첫 회식의 노래 한 곡으로 인정받은 동기가 동료들에게 회식을 강요하게 된 과거 세 장면'}},4:{0:{src:'assets/story/delegation-origin.png',characterId:'peer-4',alt:'아픈 동료를 돕던 녹색 셔츠의 동기가 고마움을 이용해 남에게 일을 떠넘기게 된 과거 세 장면'}},5:{0:{src:'assets/story/gossip-origin.png',characterId:'peer-5',alt:'자주색 폴로와 금색 고리를 한 동기가 탕비실에서 들은 정보를 소문으로 거래하게 된 과거 세 장면'}},6:{0:{src:'assets/story/revision-origin.png',characterId:'peer-6',alt:'오탈자 하나로 질책받은 회녹색 후드의 동기가 남의 완성본까지 끝없이 수정하게 된 과거 세 장면'}},7:{0:{src:'assets/story/blame-origin.png',characterId:'peer-7',alt:'구두 지시를 따랐다 혼자 징계받은 동기가 자기 지시도 부인하게 된 과거 세 장면'}}};
+const storyIllustrations={0:{2:{src:'assets/story/peer-origin-v2.png',characterId:'peer-0',alt:'입사 첫날 실수한 동료를 보고, 그를 흉내 내 임원의 칭찬을 얻은 깐족왕 동기의 과거 세 장면'}},1:{0:{src:'assets/story/messenger-origin.png',characterId:'peer-1',alt:'메신저 답장이 늦어 질책받은 수습 동기가 알림 감시에 매달리게 된 과거 세 장면'}},2:{0:{src:'assets/story/credit-origin-v2.png',characterId:'peer-2',alt:'공동 보고서에서 이름이 빠진 동기가 남의 공로까지 가져가게 된 과거 세 장면'}},3:{0:{src:'assets/story/dinner-friendship.png',characterId:'peer-3',alt:'술자리를 함께 나와 편의점에서 이야기하고 다음 날 서로 일을 돕는 회식 동기와 주인공의 친했던 시절'},2:{src:'assets/story/dinner-origin-v2.png',characterId:'peer-3',alt:'거래처 회식에서 노래로 칭찬받은 갈색 후드 동기가, 자신을 응원하던 안경 없는 주인공에게 술을 강요하게 된 세 장면'}},4:{0:{src:'assets/story/delegation-origin.png',characterId:'peer-4',alt:'아픈 동료를 돕던 녹색 셔츠의 동기가 고마움을 이용해 남에게 일을 떠넘기게 된 과거 세 장면'}},5:{0:{src:'assets/story/gossip-origin.png',characterId:'peer-5',alt:'자주색 폴로와 금색 고리를 한 동기가 탕비실에서 들은 정보를 소문으로 거래하게 된 과거 세 장면'}},6:{0:{src:'assets/story/revision-origin.png',characterId:'peer-6',alt:'오탈자 하나로 질책받은 회녹색 후드의 동기가 남의 완성본까지 끝없이 수정하게 된 과거 세 장면'}},7:{0:{src:'assets/story/blame-origin.png',characterId:'peer-7',alt:'구두 지시를 따랐다 혼자 징계받은 동기가 자기 지시도 부인하게 된 과거 세 장면'}}};
 for(const [index,beats] of Object.entries(storyIllustrations))opponents[+index].storyComicReady=Object.values(beats).length>0;
 const failedStoryImages=new Set();
 const dialogueArt={
@@ -19,11 +19,12 @@ function dialogueIllustration(){
  const speaker=dialogue.lines[dialogue.index][0];
  if(speaker==='사내 방송')return dialogueArt.broadcast;
  if(speaker==='나')return dialogueArt.hero;
- return storyIllustrations[npc]?.[dialogue.index]||Object.values(storyIllustrations[npc]||{})[0]||dialogueArt.records;
+ const beats=storyIllustrations[npc]||{},previous=Object.keys(beats).map(Number).filter(index=>index<=dialogue.index).sort((a,b)=>b-a)[0];
+ return beats[previous]||Object.values(beats)[0]||dialogueArt.records;
 }
 
 const scenes=opponents.map(o=>[
- ['나레이션',o.history.origin],['나레이션',o.history.change],['나레이션',o.history.incident],
+ ...(o.history.beats||[o.history.origin,o.history.change,o.history.incident]).map(line=>['나레이션',line]),
  [o.name,o.intro],['나',o.reply]
 ]);
 // Keep the comic proportions while making the rest of the page non-interactive.
@@ -109,14 +110,14 @@ document.addEventListener?.('click',e=>{
 selectOpponent(0);
 
 const comicPanels=[
- ['나레이션','끝없는 야근과 괴롭힘에 지쳐 사직서를 냈다.','assets/opening/panel-1.png'],
+ ['나레이션','처음에는 서로 도우면 함께 일찍 갈 수 있을 줄 알았다. 하지만 부탁은 의무가 되고, 끝없는 야근과 괴롭힘에 지쳐 사직서를 냈다.','assets/opening/panel-1.png'],
  ['나레이션','상사는 “내년까지 계약이잖아”라며 사직서를 찢어버리고 나를 내쫓았다.','assets/opening/resignation-torn.png'],
- ['나레이션','몰래 노동청에 신고하려고, 증거가 될 고용계약서를 확인했다.','assets/opening/report-preparation.png'],
- ['나레이션','마지막 조항에는 “모든 사원과 최대 주주를 이기면 회사 지분 100%를 양도한다”고 적혀 있었다.','assets/opening/contract-clause.png'],
- ['나레이션','계약서에는 지하실 대결 신청 버튼을 누르면 모든 사원에게 게임 시작이 전달된다고 했다. 그 버튼을 찾아 내려갔다.','assets/opening/panel-3-v2.png'],
+ ['나레이션','내 말만으로는 또 없던 일이 될 것 같았다. 몰래 노동청에 신고하려고 기록을 모으다가, 증거가 될 고용계약서 마지막 장을 펼쳤다.','assets/opening/report-preparation.png'],
+ ['나레이션','“모든 사원과 최대 주주를 이기면 회사 지분 100%를 양도한다.” 아무도 해내지 못할 거라 여긴 사내 결투 조항이었다. 이기면 퇴근을 막는 규칙도 바꿀 수 있었다.','assets/opening/contract-clause.png'],
+ ['나레이션','내가 떠나도 누군가는 같은 일을 겪을 것이다. 계약서의 지하실 대결 신청 버튼을 누르면 모든 사원에게 게임 시작이 전달된다. 이번에는 그 약속을 실행하러 내려갔다.','assets/opening/panel-3-v2.png'],
  ['나레이션','시작 버튼을 눌렀다. 사이렌이 회사 전체에 울려 퍼졌다.','assets/opening/basement-activation.png'],
  ['사내 방송','“대결 신청 접수. 전 층 대결 모드 전환. 첫 상대를 안내합니다.”','assets/opening/company-alarm.png'],
- ['나레이션','신청은 접수됐다. 유일하게 나를 잘 대해주던 선임이 첫 대결 전에 싸우는 법을 알려주겠다고 했다.','assets/opening/panel-5-v2.png']
+ ['나레이션','신청은 접수됐다. 지금도 유일하게 나를 잘 대해주던 선임이 찾아왔다. 야근하던 내게 밥을 챙겨주던 그는, 다치지 않도록 먼저 싸우는 법을 알려주겠다고 했다.','assets/opening/panel-5-v2.png']
 ];
 function renderOpening(){
  syncComicModal();
