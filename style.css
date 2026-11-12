@@ -130,3 +130,14 @@ main>footer a{color:#a8b8ba}
 #openingScene>.fictionNotice,#dialogueScene>.fictionNotice{max-width:calc(100% - 40px)}#openingScene>.fictionNotice>span,#dialogueScene>.fictionNotice>span{display:block;white-space:nowrap}
 @media(max-width:600px){#openingScene>.fictionNotice,#dialogueScene>.fictionNotice{max-width:calc(100% - 24px)}}
 @media(max-height:500px) and (orientation:landscape){#openingScene>.fictionNotice{max-width:calc(62% - 20px)}}
+
+#touchControls .touchMovement{display:grid;grid-template-columns:repeat(3,48px);gap:3px;pointer-events:auto;touch-action:none}
+#touchControls .touchMovement button{width:48px;min-height:44px}
+#touchControls #touchStrike{width:76px;height:76px;border-radius:50%;font-size:18px}
+#touchControls .lessonDim{opacity:.25}
+#touchControls .lessonTarget{border:2px solid #e8c58c;color:#fff0cc;opacity:1}
+#touchControls .lessonReady{background:#f5e4a6;color:#172127;box-shadow:0 0 0 3px #fff0bd66,0 0 20px #f5e4a688;font-weight:900}
+@media(max-width:700px){
+ .arena:has(#storyComicImage:is([src$="rules-origin.png"],[src$="watch-origin.png"],[src$="senior-dinner-origin.png"])):has(#dialogueScene:not([hidden])){min-height:570px}
+ #storyComic img:is([src$="rules-origin.png"],[src$="watch-origin.png"],[src$="senior-dinner-origin.png"]){object-position:center 24%}
+}

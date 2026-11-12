@@ -10,6 +10,7 @@ function beginDuck(code='ArrowDown'){
 function duckIsActive(){return duckAmount>.55;}
 function easeMotion(v){v=Math.max(0,Math.min(1,v));return v*v*(3-2*v);}
 function easeBoxing(v){v=Math.max(0,Math.min(1,v));return v*v*v*(v*(v*6-15)+10);}
+function npcAnimationTime(){return attack?.trainingHeld?(attack.trainingHeldAt??t):t;}
 function swingReach(s){
  if(s.result==='clash')return s.clashReach*Math.max(0,1-(s.elapsed-s.clashAt)/.10);
  if(s.elapsed<s.contactAt)return easeMotion(s.elapsed/s.contactAt);
@@ -43,12 +44,12 @@ function playerHandPose(hand){
  const targetY=current?(current.kind==='uppercut'?262:current.crouched?413:226):226;
  const upper=current?.kind==='uppercut',variant=current?.motion||'straight';
  const hook=variant==='hook'||variant==='shovel',arc=Math.sin(reach*Math.PI);
- const load=upper&&!current.connected?Math.sin(Math.min(1,current.elapsed/current.contactAt)*Math.PI)*48:0;
+ const load=upper&&!current.connected?Math.sin(Math.min(1,current.elapsed/current.contactAt)*Math.PI)*72:0;
  const upperBack={x:hand*.10,y:1,z:.35},straightBack={x:hand*(.08+.24*reach),y:1.25*(1-reach)+(current?.crouched?.30:.45)*reach,z:.14*(1-reach)+1.1*reach};
  const back=upper?{x:hand*.08,y:1.25*(1-reach)+upperBack.y*reach,z:.14*(1-reach)+upperBack.z*reach}:hook?{x:hand*(.08+reach*1.65),y:1.25*(1-reach)+.18*reach,z:.14*(1-reach)+.55*reach}:straightBack;
  const top=upper?{x:0,y:0,z:1}:{x:0,y:-reach,z:1-reach+.12*reach};
  const basis=gloveBasis(back,top);
- return {basis,x:restX+(targetX-restX)*reach+hand*arc*(upper?38:hook?96:variant==='jab'?4:20),y:restY+(targetY-restY)*reach+load+arc*(variant==='shovel'?44:hook?-38:variant==='jab'?-12:0),scale:1.58-.38*reach,reach,motion:variant,turn:hand*(-.08+(upper?-.48:hook?.55:.18)*reach),pitch:upper?-.25+reach*1.0:-.24+reach*.56,yaw:hand*(.20+reach*.42)};
+ return {basis,x:restX+(targetX-restX)*reach+hand*arc*(upper?58:hook?96:variant==='jab'?4:20),y:restY+(targetY-restY)*reach+load+arc*(variant==='shovel'?44:hook?-38:variant==='jab'?-12:0),scale:1.58-.38*reach,reach,motion:variant,turn:hand*(-.08+(upper?-.48:hook?.55:.18)*reach),pitch:upper?-.25+reach*1.0:-.24+reach*.56,yaw:hand*(.20+reach*.42)};
 }
 function anatomicalLimb(x1,y1,x2,y2,r1,r2,color,kind='forearm',side=1){
  const length=Math.hypot(x2-x1,y2-y1);if(length<.01)return;
@@ -142,7 +143,7 @@ function enemyRig(a,phase,recovery=null){
  const forward=unit([fist.x-elbow.x,fist.y-elbow.y,fist.z-elbow.z]);
  const joint={x:elbow.x+forward[0]*forearm,y:elbow.y+forward[1]*forearm,z:elbow.z+forward[2]*forearm};
  const root=npcBodyMotion();
- const sway=hit?reactionSide*Math.sin(Math.PI*Math.min(1,hit/.36))*28*reactionPower:Math.sin(t*2)*2;
+ const sway=hit?reactionSide*Math.sin(Math.PI*Math.min(1,hit/.36))*28*reactionPower:Math.sin(npcAnimationTime()*2)*2;
  function project(p){
   const scale=300/Math.max(85,p.z),x=p.x*scale,y=255+p.y*scale-350;
   return {x:500+root.x+sway+x*Math.cos(root.twist)-y*Math.sin(root.twist),y:350+root.y+x*Math.sin(root.twist)+y*Math.cos(root.twist),scale};

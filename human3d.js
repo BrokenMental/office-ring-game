@@ -222,7 +222,7 @@ const human3D=(()=>{
     const ids=indices.slice(t,t+3),faceVertices=[];
     const scalp=ids.every(i=>{
      const x=positions[i*3],y=positions[i*3+1],front=positions[i*3+2]>.4;
-     const hairline=coach?2.35:look.hair==='receding'?3.6:look.hair==='crop'?2.95:look.hair==='longpart'?2.4:look.hair==='wave'?2.55:2.75;
+     const hairline=(coach||look===opponentLooks[8])?2.35:look.hair==='receding'?3.6:look.hair==='crop'?2.95:look.hair==='longpart'?2.4:look.hair==='wave'?2.55:2.75;
      return y>(front?hairline+(look.hair==='part'||look.hair==='longpart'?x*.13:0):look.hair==='longpart'?1.25:1.95);
     });
     for(const i of ids){
@@ -248,6 +248,12 @@ const human3D=(()=>{
       const lid=Math.exp(-Math.pow((Math.abs(rawX)-.67)/.35,2)-Math.pow((rawY-1.28)/.30,2));
       y+=lid*(rawY>1.27?1.5:-.6)*front;
      }
+     if(look===opponentLooks[8]){
+      // Broad, squared lower face from the rules coworker's reviewed comic.
+      const jawBand=Math.exp(-Math.pow((rawY+.65)/.65,2));
+      x*=1+.09*jawBand;
+      z+=lipMask*.8;
+     }
      if(messenger){
       const front=Math.max(0,Math.min(1,(positions[i*3+2]-1.2)/1.3));
       const chin=Math.exp(-Math.pow((rawY+1.02)/.55,2));
@@ -271,7 +277,7 @@ const human3D=(()=>{
      faceVertices.push({p:[x,y,z],n});
      if(scalp){
       const crown=Math.max(0,rawY-2.7),style=peer?3:look.hair==='spiky'?10+Math.sin(rawX*13)*5:look.hair==='curly'?8+Math.sin(rawX*17+rawY*12)*4:look.hair==='messy'?7+Math.sin(rawX*9+rawY*5)*5:look.hair==='wave'?9+Math.sin(rawX*5)*3:look.hair==='crop'?.8:look.hair==='slick'?1.5:3;
-      const lift=(coach?3.2:1.25)+crown*style+(look.hair==='wave'?Math.max(0,n[0])*2.5:0);hair.push(x+n[0]*lift,y+n[1]*lift,z+n[2]*lift,...n);
+      const lift=((coach||look===opponentLooks[8])?3.2:1.25)+crown*style+(look.hair==='wave'?Math.max(0,n[0])*2.5:0);hair.push(x+n[0]*lift,y+n[1]*lift,z+n[2]*lift,...n);
      }
     }
     // Clip crossing neck triangles at one plane instead of dropping them:
@@ -305,7 +311,7 @@ const human3D=(()=>{
     for(let i=0;i<9;i++)for(let j=0;j<8;j++)for(const v of [rings[i][j],rings[i+1][j],rings[i][j+1],rings[i+1][j],rings[i+1][j+1],rings[i][j+1]])hair.push(...v.p,...v.n);
    };
    const style=look.hair,fit=look.faceWidth/65;
-   for(let i=0;i<(peer||messenger||coach?0:15);i++){
+   for(let i=0;i<(peer||messenger||coach||look===opponentLooks[8]?0:15);i++){
     const x=(i-7)*6.0,arch=x*x*.013,random=Math.sin(i*7.13);
     if(style==='receding'&&Math.abs(x)<28)continue;
     const short=style==='crop'||style==='receding',slick=style==='slick';
@@ -323,7 +329,7 @@ const human3D=(()=>{
     for(const side of [-1,1])for(let i=0;i<3;i++)lock([side*(37+i*3)*fit,-77+i*5,267],[side*(47+i)*fit,-86+i*4,248],[side*(48+i)*fit,-69+i*6,249],5.5);
     for(let i=1;i<hair.length;i+=6)if(hair[i]<-75)hair[i]=-75+(hair[i]+75)*.78;
    }
-   if(coach){
+   if(coach||look===opponentLooks[8]){
     // Keep the cap continuous; a few shallow swept ridges lie on the scalp.
     for(let i=0;i<9;i++){
      const x=(i-4)*8,arch=x*x*.011;
@@ -552,7 +558,7 @@ const human3D=(()=>{
  function begin(){gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);}
  state.renderOpponent=()=>{
   begin();const look=activeOpponentLook();prepare(look);state.toon=state.faceProfile==='coach';
-  const body=npcBodyMotion(),sway=hit?reactionSide*Math.sin(Math.PI*Math.min(1,hit/.36))*18*reactionPower:Math.sin(t*2)*1.5;
+  const body=npcBodyMotion(),sway=hit?reactionSide*Math.sin(Math.PI*Math.min(1,hit/.36))*18*reactionPower:Math.sin(npcAnimationTime()*2)*1.5;
   root={x:body.x+sway,y:body.y+koPose*165,z:koPose*90,twist:body.twist+koPose*.48,yaw:(attack?attack.side*.12*body.drive:0)};
   const arms=opponentArms(look);drawBody(look,arms);
   // One smooth neck bridges the clipped head and shirt opening.

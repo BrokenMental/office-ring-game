@@ -3,8 +3,11 @@ let companyDuelMode=false;
 let dialogue={active:false,index:0,revealed:0,lines:[]};
 let introEnabled=true;
 const seenIntros=new Set();
-// Character-specific origin art for eight peers; every other line gets contextual art.
+// Character-specific origin art for the first eleven opponents; later opponents use contextual art.
 const storyIllustrations={0:{2:{src:'assets/story/peer-origin-v2.png',characterId:'peer-0',alt:'입사 첫날 실수한 동료를 보고, 그를 흉내 내 임원의 칭찬을 얻은 깐족왕 동기의 과거 세 장면'}},1:{0:{src:'assets/story/messenger-origin.png',characterId:'peer-1',alt:'메신저 답장이 늦어 질책받은 수습 동기가 알림 감시에 매달리게 된 과거 세 장면'}},2:{0:{src:'assets/story/credit-origin-v2.png',characterId:'peer-2',alt:'공동 보고서에서 이름이 빠진 동기가 남의 공로까지 가져가게 된 과거 세 장면'}},3:{0:{src:'assets/story/dinner-friendship.png',characterId:'peer-3',alt:'술자리를 함께 나와 편의점에서 이야기하고 다음 날 서로 일을 돕는 회식 동기와 주인공의 친했던 시절'},2:{src:'assets/story/dinner-origin-v2.png',characterId:'peer-3',alt:'거래처 회식에서 노래로 칭찬받은 갈색 후드 동기가, 자신을 응원하던 안경 없는 주인공에게 술을 강요하게 된 세 장면'}},4:{0:{src:'assets/story/delegation-origin.png',characterId:'peer-4',alt:'아픈 동료를 돕던 녹색 셔츠의 동기가 고마움을 이용해 남에게 일을 떠넘기게 된 과거 세 장면'}},5:{0:{src:'assets/story/gossip-origin.png',characterId:'peer-5',alt:'자주색 폴로와 금색 고리를 한 동기가 탕비실에서 들은 정보를 소문으로 거래하게 된 과거 세 장면'}},6:{0:{src:'assets/story/revision-origin.png',characterId:'peer-6',alt:'오탈자 하나로 질책받은 회녹색 후드의 동기가 남의 완성본까지 끝없이 수정하게 된 과거 세 장면'}},7:{0:{src:'assets/story/blame-origin.png',characterId:'peer-7',alt:'구두 지시를 따랐다 혼자 징계받은 동기가 자기 지시도 부인하게 된 과거 세 장면'}}};
+storyIllustrations[8]={0:{src:'assets/story/rules-origin.png',characterId:'peer-8',alt:'교통비 문제를 함께 풀던 사각 안경의 동기가 상사의 예외 승인을 보고 자기에게만 예외를 적용하게 된 세 장면'}};
+storyIllustrations[9]={0:{src:'assets/story/watch-origin.png',characterId:'peer-9',alt:'같이 퇴근하던 회갈색 후드와 작은 콧수염의 동기가 평가에 상처받은 뒤 주인공의 퇴근까지 막게 된 세 장면'}};
+storyIllustrations[10]={0:{src:'assets/story/senior-dinner-origin.png',characterId:'senior-10',alt:'회의에서 주인공의 발언을 돕던 회갈색 폴로의 선임이 회식 뒤 예산 승인을 받고 식사 참석을 기획안 검토의 조건으로 삼게 된 세 장면'}};
 for(const [index,beats] of Object.entries(storyIllustrations))opponents[+index].storyComicReady=Object.values(beats).length>0;
 const failedStoryImages=new Set();
 const dialogueArt={

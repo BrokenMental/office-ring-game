@@ -1,4 +1,4 @@
-// Comic cutout rig used only by the tutorial. Combat geometry stays in enemyRig.
+// Shared comic cutout rig. Combat geometry stays in enemyRig/playerHandPose.
 const coach2D=(()=>{
  const state={ready:false,frames:0,error:null,parts:[],lastPose:[]};
  if(typeof Image==='undefined')return state;
@@ -28,15 +28,16 @@ const coach2D=(()=>{
   }
   return parts;
  }
+ state.slices=slices;
  const load=(img,src)=>new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('Comic asset unavailable: '+src));img.src=src;});
  state.assetPromise=Promise.all([load(atlas,'assets/coach/coach-atlas.png'),load(gloves,'assets/coach/boxing-gloves-v2.png')]).then(()=>{
   state.parts=slices(atlas,3,3);const sideGuard=state.parts[7],hands=slices(gloves,3,2);
   for(let i=0;i<3;i++)state.parts[6+i]=hands[i];state.parts[6]=sideGuard;state.playerParts=hands.slice(3);
   state.ready=true;
  }).catch(error=>{state.error=String(error);});
- function coachHead(part){
+ function coachHead(part,proportions=state.proportions){
   // Keep the face intact; compress only the neck below the jaw into the collar.
-  const split=.78,scale=proportions.headWidth/145,faceHeight=230*split*scale,neckHeight=230*(1-split)*scale,top=-216-230*split*(scale-1);
+  const split=proportions.neckSplit||.78,scale=proportions.headWidth/145,faceHeight=230*split*scale,neckHeight=230*(1-split)*scale,top=-216-230*split*(scale-1);
   g.drawImage(part.image,part.x,part.y,part.w,part.h*split,-proportions.headWidth/2,top,proportions.headWidth,faceHeight);
   const rows=64;
   for(let i=0;i<rows;i++){
@@ -97,31 +98,38 @@ const coach2D=(()=>{
   };
   return {shoulder,elbow,wrist,upperWidth,lowerWidth,wristWidth,points,left,right,path:tube(0),frontPath:tube(25)};
  }
- function drawArm(arm,frontOnly=false){
+ function drawArm(arm,frontOnly=false,skin=null){
   g.save();
   if(frontOnly)g.clip(arm.frontPath);
   const p=arm.points[43],l=arm.left[43],r=arm.right[43],light=g.createLinearGradient(l.x,l.y,r.x,r.y);
-  light.addColorStop(0,'#a87053');light.addColorStop(.22,'#cf9571');light.addColorStop(.55,'#e6b48e');light.addColorStop(1,'#bc805f');
+  light.addColorStop(0,skin?toneColor(skin,-30):'#a87053');light.addColorStop(.22,skin||'#cf9571');light.addColorStop(.55,skin?toneColor(skin,28):'#e6b48e');light.addColorStop(1,skin?toneColor(skin,-12):'#bc805f');
   g.fillStyle=light;g.shadowColor='#624638';g.shadowBlur=2;g.fill(arm.path);g.shadowBlur=0;
   g.clip(arm.path);
   // Reuse the comic's skin detail as a faint continuous texture, without part cuts.
-  g.save();const skin=state.parts[5],dx=arm.wrist.x-arm.shoulder.x,dy=arm.wrist.y-arm.shoulder.y;
+  g.save();const texture=state.parts[5],dx=arm.wrist.x-arm.shoulder.x,dy=arm.wrist.y-arm.shoulder.y;
   g.translate(arm.shoulder.x,arm.shoulder.y);g.rotate(Math.atan2(dy,dx)-Math.PI/2);g.globalAlpha=.16;
   const textureWidth=Math.max(arm.upperWidth,arm.lowerWidth)*1.8;
-  g.drawImage(skin.image,skin.x,skin.y,skin.w,skin.h,-textureWidth/2,0,textureWidth,Math.hypot(dx,dy));g.restore();
+  g.drawImage(texture.image,texture.x,texture.y,texture.w,texture.h,-textureWidth/2,0,textureWidth,Math.hypot(dx,dy));g.restore();
   g.beginPath();g.moveTo(arm.points[34].x,arm.points[34].y);
   g.quadraticCurveTo(p.x+(l.x-p.x)*.25,p.y+(l.y-p.y)*.25,arm.wrist.x,arm.wrist.y);
   g.strokeStyle='#956349';g.lineWidth=1;g.stroke();
   g.restore();
  }
- state.renderOpponent=()=>{
-  const root=npcBodyMotion(),sway=hit?reactionSide*Math.sin(Math.PI*Math.min(1,hit/.36))*28*reactionPower:Math.sin(t*2)*2;
-  const origin={x:500+root.x+sway,y:350+root.y};
+ state.renderOpponent=(art=null)=>{
+  const proportions=art?.proportions||state.proportions,parts=art?.parts||state.parts;
+  const body=npcBodyMotion(),root={...body,twist:body.twist+(art?koPose*.3:0)},sway=hit?reactionSide*Math.sin(Math.PI*Math.min(1,hit/.36))*28*reactionPower:Math.sin(npcAnimationTime()*2)*2;
+  const origin={x:500+root.x+sway,y:350+root.y+(art?koPose*180:0)};
   const world=(x,y)=>({x:origin.x+x*Math.cos(root.twist)-y*Math.sin(root.twist),y:origin.y+x*Math.sin(root.twist)+y*Math.cos(root.twist)});
   state.lastPose=[];
   const arms=[-1,1].map(side=>{
    const current=attack?.side===side?attack:impact?.side===side?impact:null;
    const rig=enemyRig(current||{side,lane:side,kind:'idle'},current===attack&&current?(t-current.start)/current.duration:current?1:0,current===impact&&current?impact.life/.2:null);
+   if(art&&koPose>0){
+    // Carry both joints with the falling torso instead of leaving gloves in guard.
+    const angle=koPose*.3,cx=500+body.x,cy=350+body.y;
+    const fall=point=>({...point,x:cx+(point.x-cx)*Math.cos(angle)-(point.y-cy)*Math.sin(angle),y:cy+(point.x-cx)*Math.sin(angle)+(point.y-cy)*Math.cos(angle)+koPose*180});
+    rig.elbow=fall(rig.elbow);rig.wrist=fall(rig.wrist);
+   }
    const roll=rig.drive*10-enemyMotion(current,current===attack&&current?(t-current.start)/current.duration:1,current===impact&&current?impact.life/.2:null).load*3;
    const shoulder=world(side*(proportions.shoulderHalfWidth-roll*.45),-roll*.55);
    rig.elbow={...rig.elbow,x:rig.elbow.x+side*62*(1-rig.drive)};
@@ -130,7 +138,7 @@ const coach2D=(()=>{
    const center={x:rig.wrist.x-Math.sin(angle)*focus,y:rig.wrist.y+Math.cos(angle)*focus};
    const cuff={x:center.x-Math.sin(angle)*h*.43,y:center.y+Math.cos(angle)*h*.43};
    const turn=easeMotion((rig.drive-.12)/.48),extended=['hook','uppercut','shovel'].includes(motion)?8:7;
-   const cuffWidth=size*(state.parts[6].wristSpan*(1-turn)+state.parts[extended].wristSpan*turn);
+   const cuffWidth=size*(parts[6].wristSpan*(1-turn)+parts[extended].wristSpan*turn);
    const wristWidth=Math.min(cuffWidth*.82,proportions.wristWidth*rig.elbow.scale);
    const arm=armShape(shoulder,rig.elbow,cuff,proportions.upperArmWidth*rig.shoulder.scale,proportions.forearmWidth*rig.elbow.scale,wristWidth);
    return {side,rig,current,shoulder,roll,motion,size,h,angle,center,cuff,turn,extended,cuffWidth,arm};
@@ -139,7 +147,7 @@ const coach2D=(()=>{
   g.save();g.translate(origin.x,origin.y);g.rotate(root.twist);
   // Each chest strip follows its shoulder near the collar and settles at the waist.
   const chest=()=>{
-  const torso=state.parts[3],strips=16,halfWidth=proportions.torsoWidth/2;
+  const torso=parts[3],strips=16,halfWidth=proportions.torsoWidth/2;
   const chestX=x=>x*(1-.35*Math.exp(-Math.pow(x/80,2)));
   for(let i=0;i<strips;i++){
    const x=-halfWidth+halfWidth*2*i/strips,mid=x+halfWidth/strips;
@@ -150,17 +158,18 @@ const coach2D=(()=>{
   }
   };chest();
   const expression=hit>0?1:attack?2:0;
-  coachHead(state.parts[expression]);
+  coachHead(parts[expression],proportions);
   // The collar is in front of the neck: hide its cut edge and the source neck seam.
   g.save();g.beginPath();g.moveTo(-240,-52);g.lineTo(-80,-52);g.lineTo(-48,-16);g.lineTo(0,8);
   g.lineTo(48,-16);g.lineTo(80,-52);g.lineTo(240,-52);g.lineTo(240,400);g.lineTo(-240,400);g.closePath();g.clip();
   chest();g.restore();
+  if(art?.drawDetails)art.drawDetails(expression);
   g.restore();state.lastExpression=expression;
   for(const {side,rig,shoulder,motion,size,h,angle,center,cuff,turn,extended,cuffWidth,arm} of arms){
-   drawArm(arm,true);
+   drawArm(arm,true,art?.skin);
    const view=rig.drive>.32?extended:6,mirror=side>0;
    g.save();g.translate(cuff.x,cuff.y);g.rotate(angle);
-   turningGlove(state.parts[6],state.parts[extended],turn,size,h,mirror);g.restore();
+   turningGlove(parts[6],parts[extended],turn,size,h,mirror);g.restore();
    const attachment={wristError:Math.hypot(arm.points[64].x-cuff.x,arm.points[64].y-cuff.y),wristWidth:arm.wristWidth};
    state.lastPose.push({side,view,shoulder,elbow:rig.elbow,cuff,fist:rig.wrist,center,size,angle,turn,mirror,attachment,cuffWidth,arm});
   }
@@ -194,6 +203,9 @@ const coach2D=(()=>{
    const wristWidth=Math.min(cuffWidth*.82,54);
    const arm=armShape(shoulder,elbow,cuff,116,104-10*reach,wristWidth);
    drawArm(arm);
+   // Rolled shirt follows the same continuous arm silhouette.
+   g.save();g.clip(arm.path);g.beginPath();g.moveTo(shoulder.x,shoulder.y);g.lineTo(elbow.x,elbow.y);g.strokeStyle='#627f96';g.lineWidth=126;g.lineCap='round';g.stroke();
+   g.beginPath();g.moveTo(elbow.x+(shoulder.x-elbow.x)*.12,elbow.y+(shoulder.y-elbow.y)*.12);g.lineTo(elbow.x,elbow.y);g.strokeStyle='#9caebc';g.lineWidth=130;g.stroke();g.restore();
    const attachment={wristError:Math.hypot(arm.points[64].x-cuff.x,arm.points[64].y-cuff.y),wristWidth};
    g.save();g.translate(cuff.x,cuff.y);g.rotate(angle);
    turningGlove(state.playerParts[0],state.playerParts[extended],turn,w,h,hand<0);g.restore();
@@ -204,4 +216,4 @@ const coach2D=(()=>{
 })();
 const beforeComicOpponent=drawOpponent,beforeComicPlayer=drawPlayerHands;
 drawOpponent=function(){if(tutorial>=0&&coach2D.ready)coach2D.renderOpponent();else beforeComicOpponent();};
-drawPlayerHands=function(){if(tutorial>=0&&coach2D.ready)coach2D.renderPlayer();else beforeComicPlayer();};
+drawPlayerHands=function(){if(coach2D.ready)coach2D.renderPlayer();else beforeComicPlayer();};

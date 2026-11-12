@@ -117,9 +117,9 @@ function drawRealFace(){
 }
 function drawOpponent(){
  g.save();
- const sway=hit?reactionSide*Math.sin(Math.PI*Math.min(1,hit/.36))*28*reactionPower:Math.sin(t*2)*2;
+ const sway=hit?reactionSide*Math.sin(Math.PI*Math.min(1,hit/.36))*28*reactionPower:Math.sin(npcAnimationTime()*2)*2;
  const bodyMotion=npcBodyMotion();g.translate(500+sway+bodyMotion.x,koPose*180+bodyMotion.y);g.translate(0,-92);g.scale(1.23,1.23);g.rotate(koPose*.16);
- const bob=Math.sin(t*2.5)*1.6;g.translate(0,bob);g.translate(0,360);g.rotate(bodyMotion.twist);g.translate(0,-360);
+ const bob=Math.sin(npcAnimationTime()*2.5)*1.6;g.translate(0,bob);g.translate(0,360);g.rotate(bodyMotion.twist);g.translate(0,-360);
  const wide=activeOpponentLook().body;
  pathShape(shade(-wide,330,wide,510,[[0,'#202b31'],[.45,activeOpponentLook().suit],[1,'#182228']]),()=>{g.moveTo(-34,325);g.bezierCurveTo(-85,328,-wide,343,-wide-8,401);g.lineTo(-wide+3,566);g.lineTo(wide-3,566);g.lineTo(wide+8,401);g.bezierCurveTo(wide,344,79,329,34,325);},'#111c23',2);
  pathShape(shade(-20,325,35,510,[[0,'#dddace'],[.6,'#bfc4bf'],[1,'#8d9999']]),()=>{g.moveTo(-31,322);g.lineTo(-56,351);g.lineTo(-35,550);g.lineTo(39,550);g.lineTo(56,351);g.lineTo(30,322);});
