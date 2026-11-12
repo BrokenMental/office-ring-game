@@ -16,7 +16,15 @@ const lessons=[
  {key:'KeyS',lane:0,side:1,mode:'hit',label:'선임: 이번엔 S로 가운데 스트레이트. K도 같아.'},
  {key:'KeyD',lane:1,side:1,mode:'hit',label:'선임: D로 오른쪽! L도 같은 공격이야.'},
  {key:'KeyA',lane:-1,side:-1,mode:'clash',label:'선임: 천천히 간다. 주먹이 멈추면 A 또는 J로 맞부딪쳐!'},
- {key:'ArrowDown',lane:0,side:1,mode:'evade',label:'선임: 주먹이 멈추면 ↓를 눌러 숙여 봐!'}
+ {key:'ArrowDown',lane:0,side:1,mode:'evade',label:'선임: 주먹이 멈추면 ↓를 눌러 숙여 봐!'},
+ {key:'KeyA',lane:-1,side:-1,body:true,motion:'shovel',mode:'clash',label:'선임: 복부는 숙이기만 하면 맞아. ↓를 누른 채 A/J로 왼쪽 주먹을 받아쳐!'},
+ {key:'KeyD',lane:1,side:1,body:true,motion:'shovel',mode:'clash',label:'선임: 이번엔 오른쪽 복부! ↓를 누른 채 D/L. 가운데 S/K 어퍼컷은 방어가 아니야.'},
+ {key:'ArrowRight',lane:-1,side:-1,motion:'hook',mode:'evade',weave:true,label:'선임: 화면 왼쪽 공격은 반대인 →로 피해! 훅도 같아.'},
+ {key:'ArrowLeft',lane:1,side:1,motion:'cross',mode:'evade',weave:true,label:'선임: 화면 오른쪽 공격은 ←로 피해! 공격 위치를 봐.'},
+ {key:'ArrowLeft',lane:0,side:1,motion:'cross',mode:'evade',weave:true,label:'선임: 가운데 공격은 ← 또는 →, 어느 쪽으로든 피해!'},
+ {key:'ArrowRight',lane:-1,side:-1,body:true,motion:'shovel',mode:'evade',weave:true,label:'선임: 왼쪽 복부도 →로 피해! 숙이기만 하면 맞아.'},
+ {key:'ArrowLeft',lane:1,side:1,body:true,motion:'shovel',mode:'evade',weave:true,label:'선임: 오른쪽 복부는 ←! 이번엔 타격 없이 위빙만.'},
+ {key:'ArrowRight',lane:0,side:-1,body:true,motion:'uppercut',mode:'evade',weave:true,label:'선임: 가운데 복부도 ← 또는 →! 맞춰 피한 뒤 치면 카운터야.'}
 ];
 let trainingFinishAt=Infinity;
 function nextLesson(){tutorial++;tutorialStartedAt=t;attack=null;next=t+.8;}
@@ -31,7 +39,7 @@ function npcPunchDuration(index=npc){return .8-index*.003;}
 function beginAttack(){
  if(npcIsGroggy()){next=Math.max(next,npcGroggyUntil);return;}
  if(tutorial>=0&&tutorial<lessons.length&&lessons[tutorial].mode==='hit'){next=Infinity;return;}
- if(tutorial>=0&&tutorial<lessons.length){attack={...lessons[tutorial],kind:'cross',start:t,duration:1.05,training:true,trainingHeld:false,trainingReleased:false};next=Infinity;return;}
+ if(tutorial>=0&&tutorial<lessons.length){attack={...lessons[tutorial],kind:lessons[tutorial].body?'body':'cross',start:t,duration:1.05,training:true,trainingHeld:false,trainingReleased:false};next=Infinity;return;}
  if(tutorial===lessons.length){next=Infinity;return;}
  if(!combo.length){comboNumber++;const patterns=patternForOpponent();combo=patterns[(comboNumber-1)%patterns.length].map(a=>({...a}));if(difficulty==='easy')combo=combo.slice(0,2);comboIndex=0;}
  const a=combo.shift(),styles=['jab','cross','hook','overhand'];
@@ -107,7 +115,7 @@ function finishEnemyAction(a,outcome){
   shake=a.body?10:20;hurt=.32;if(a.body){bodyDip=.5;grunt();say('복부 피격!');}else{impactSound('hurt');say('HIT!');}
   opening=.15;combo=[];
  }
- if(tutorial>=0&&tutorial<lessons.length){const mode=lessons[tutorial].mode;if(mode==='clash'&&outcome==='clash'||mode==='evade'&&outcome==='evade')nextLesson();combo=[];}
+ if(tutorial>=0&&tutorial<lessons.length){const lesson=lessons[tutorial],mode=lesson.mode;if(mode==='clash'&&outcome==='clash'||mode==='evade'&&outcome==='evade'&&(!lesson.weave||weaveEvades(a)))nextLesson();combo=[];}
  next=t+(combo.length?(difficulty==='easy'?.18:.12):Math.max(opening,cfg().gap));
  if(tutorial<0&&!a.counter&&++npcActions%(difficulty==='easy'?4:3)===0){combo=[];beginNPCGuard(repeatedLane??0,repeatedHeight);}
  if(tutorial===lessons.length){tutorialStartedAt=t;next=Infinity;}
@@ -169,7 +177,7 @@ function guideTrainingAttack(dt){
  if(tutorial<0||!a?.training||a.trainingReleased||!['clash','evade'].includes(lesson?.mode))return;
  if(a.trainingHeld){
   // Only the NPC's clock waits. Player punches, cooldown and crouching keep moving.
-  if(lesson.mode==='evade'&&duckIsActive()){a.trainingHeld=false;a.trainingReleased=true;}
+  if(lesson.mode==='evade'&&(lesson.weave?weaveEvades(a):duckIsActive())){a.trainingHeld=false;a.trainingReleased=true;}
   else a.start+=dt;
  }else{
   a.start+=dt*.65;

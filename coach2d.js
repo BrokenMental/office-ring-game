@@ -35,16 +35,38 @@ const coach2D=(()=>{
   for(let i=0;i<3;i++)state.parts[6+i]=hands[i];state.parts[6]=sideGuard;state.playerParts=hands.slice(3);
   state.ready=true;
  }).catch(error=>{state.error=String(error);});
- function coachHead(part,proportions=state.proportions){
+ function coachHead(part,proportions=state.proportions,skin='#cf9571'){
   // Keep the face intact; compress only the neck below the jaw into the collar.
-  const split=proportions.neckSplit||.78,scale=proportions.headWidth/145,faceHeight=230*split*scale,neckHeight=230*(1-split)*scale,top=-216-230*split*(scale-1);
-  g.drawImage(part.image,part.x,part.y,part.w,part.h*split,-proportions.headWidth/2,top,proportions.headWidth,faceHeight);
-  const rows=64;
-  for(let i=0;i<rows;i++){
-   const u=i/rows,w=proportions.headWidth*(1-(1-proportions.neckWidth)*easeMotion(u));
-   g.drawImage(part.image,part.x,part.y+part.h*(split+(1-split)*u),part.w,part.h*(1-split)/rows,
-    -w/2,top+faceHeight+neckHeight*proportions.neckLength*u,w,neckHeight*proportions.neckLength/rows+.05);
+  const split=proportions.neckSplit||.78,scale=proportions.headWidth/145,faceHeight=230*split*scale,neckHeight=230*(1-split)*scale,headLift=proportions.headLift||0,top=-216-230*split*(scale-1)-headLift;
+  const faceSplit=part.faceSplit||split,neck=part.neckSource||part;
+  const drawFace=()=>g.drawImage(part.image,part.x,part.y,part.w,part.h*faceSplit,-proportions.headWidth/2,top,proportions.headWidth,faceHeight);
+  if(!part.neckSource)drawFace();
+  const neckLength=neckHeight*proportions.neckLength+headLift;
+  if(headLift){
+   // One resample avoids horizontal seams when extending the campaign neck.
+   const overlap=part.neckSource?12:.5,neckSplit=split;
+   if(part.neckSource&&part.neckMode!=='attack'){
+    // Cover transparent cutout edges beneath the jaw with a connected neck.
+    g.save();g.beginPath();
+    const half=proportions.headWidth*.18,y=top+faceHeight,shade=g.createLinearGradient(0,y-overlap,0,y+neckLength);
+    shade.addColorStop(0,toneColor(skin,-28));shade.addColorStop(1,skin);g.fillStyle=shade;
+    g.moveTo(-half*.8,y-overlap);g.lineTo(half*.8,y-overlap);
+    g.lineTo(half*1.08,y+neckLength);g.lineTo(-half*1.08,y+neckLength);g.closePath();g.fill();g.restore();
+   }
+   // Reuse the attack's own opaque neck edge after atlas bounds are cleaned.
+   const sourceSplit=part.neckMode==='attack' ? 0 : neckSplit,sourceHeight=part.neckMode==='attack' ? 1 : 1-neckSplit;
+   g.drawImage(neck.image,neck.x,neck.y+neck.h*sourceSplit,neck.w,neck.h*sourceHeight,
+    -proportions.headWidth/2,top+faceHeight-overlap,proportions.headWidth,neckLength+overlap);
+  }else{
+   const rows=64;
+   for(let i=0;i<rows;i++){
+    const u=i/rows,w=proportions.headWidth*(1-(1-proportions.neckWidth)*easeMotion(u));
+    g.drawImage(part.image,part.x,part.y+part.h*(split+(1-split)*u),part.w,part.h*(1-split)/rows,
+     -w/2,top+faceHeight+neckLength*u,w,neckLength/rows+.05);
+   }
   }
+  if(part.neckSource)drawFace();
+  state.lastHead={top,faceHeight,jawY:top+faceHeight,faceSplit,neckFromRest:part.neckMode==='rest',neckSourceMode:part.neckMode||null};
  }
  const blendCanvas=document.createElement('canvas');blendCanvas.width=384;blendCanvas.height=384;
  const blendContext=blendCanvas.getContext('2d');
@@ -101,18 +123,10 @@ const coach2D=(()=>{
  function drawArm(arm,frontOnly=false,skin=null){
   g.save();
   if(frontOnly)g.clip(arm.frontPath);
-  const p=arm.points[43],l=arm.left[43],r=arm.right[43],light=g.createLinearGradient(l.x,l.y,r.x,r.y);
+  const l=arm.left[43],r=arm.right[43],light=g.createLinearGradient(l.x,l.y,r.x,r.y);
   light.addColorStop(0,skin?toneColor(skin,-30):'#a87053');light.addColorStop(.22,skin||'#cf9571');light.addColorStop(.55,skin?toneColor(skin,28):'#e6b48e');light.addColorStop(1,skin?toneColor(skin,-12):'#bc805f');
   g.fillStyle=light;g.shadowColor='#624638';g.shadowBlur=2;g.fill(arm.path);g.shadowBlur=0;
   g.clip(arm.path);
-  // Reuse the comic's skin detail as a faint continuous texture, without part cuts.
-  g.save();const texture=state.parts[5],dx=arm.wrist.x-arm.shoulder.x,dy=arm.wrist.y-arm.shoulder.y;
-  g.translate(arm.shoulder.x,arm.shoulder.y);g.rotate(Math.atan2(dy,dx)-Math.PI/2);g.globalAlpha=.16;
-  const textureWidth=Math.max(arm.upperWidth,arm.lowerWidth)*1.8;
-  g.drawImage(texture.image,texture.x,texture.y,texture.w,texture.h,-textureWidth/2,0,textureWidth,Math.hypot(dx,dy));g.restore();
-  g.beginPath();g.moveTo(arm.points[34].x,arm.points[34].y);
-  g.quadraticCurveTo(p.x+(l.x-p.x)*.25,p.y+(l.y-p.y)*.25,arm.wrist.x,arm.wrist.y);
-  g.strokeStyle='#956349';g.lineWidth=1;g.stroke();
   g.restore();
  }
  state.renderOpponent=(art=null)=>{
@@ -134,10 +148,16 @@ const coach2D=(()=>{
    const shoulder=world(side*(proportions.shoulderHalfWidth-roll*.45),-roll*.55);
    rig.elbow={...rig.elbow,x:rig.elbow.x+side*62*(1-rig.drive)};
    const motion=current?.motion||current?.kind,size=proportions.gloveWidth*rig.gloveScale,h=size*1.17;
-   const angle=Math.atan2(rig.elbow.y-rig.wrist.y,rig.elbow.x-rig.wrist.x)-Math.PI/2,focus=h*.16*rig.drive;
+   const forearmAngle=Math.atan2(rig.elbow.y-rig.wrist.y,rig.elbow.x-rig.wrist.x)-Math.PI/2;
+   // Depth can project the elbow above a low fist. Follow the 3D cuff basis
+   // toward contact instead of turning the glove upside down in screen space.
+   const cuffTilt=Math.atan2(Math.abs(rig.wrist.x-rig.cuff.x),Math.abs(rig.cuff.y-rig.wrist.y));
+   const turnBlend=easeMotion((rig.drive-.1)/.5),lowAngle=-side*(.26*(1-turnBlend)+Math.min(1.45,cuffTilt)*turnBlend);
+   const angle=current?.body?lowAngle:forearmAngle,focus=h*.16*rig.drive;
    const center={x:rig.wrist.x-Math.sin(angle)*focus,y:rig.wrist.y+Math.cos(angle)*focus};
    const cuff={x:center.x-Math.sin(angle)*h*.43,y:center.y+Math.cos(angle)*h*.43};
-   const turn=easeMotion((rig.drive-.12)/.48),extended=['hook','uppercut','shovel'].includes(motion)?8:7;
+   // Both straight and curved punches lead with the knuckles, never the palm.
+   const turn=easeMotion((rig.drive-.12)/.48),extended=7;
    const cuffWidth=size*(parts[6].wristSpan*(1-turn)+parts[extended].wristSpan*turn);
    const wristWidth=Math.min(cuffWidth*.82,proportions.wristWidth*rig.elbow.scale);
    const arm=armShape(shoulder,rig.elbow,cuff,proportions.upperArmWidth*rig.shoulder.scale,proportions.forearmWidth*rig.elbow.scale,wristWidth);
@@ -158,7 +178,7 @@ const coach2D=(()=>{
   }
   };chest();
   const expression=hit>0?1:attack?2:0;
-  coachHead(parts[expression],proportions);
+  coachHead(parts[expression],proportions,art?.skin);
   // The collar is in front of the neck: hide its cut edge and the source neck seam.
   g.save();g.beginPath();g.moveTo(-240,-52);g.lineTo(-80,-52);g.lineTo(-48,-16);g.lineTo(0,8);
   g.lineTo(48,-16);g.lineTo(80,-52);g.lineTo(240,-52);g.lineTo(240,400);g.lineTo(-240,400);g.closePath();g.clip();
@@ -179,7 +199,7 @@ const coach2D=(()=>{
   if(inDialogue())return;
   state.lastPlayer=[];
   for(const hand of [-1,1]){
-   const pose=playerHandPose(hand),reach=pose.reach,view=reach>.28?(['hook','uppercut','shovel'].includes(pose.motion)?2:1):0;
+   const pose=playerHandPose(hand),reach=pose.reach,view=reach>.28?1:0;
    const w=137*(1.58-.63*reach),h=w*(1.4-.30*reach);
    const load=Math.sin(Math.PI*Math.min(1,reach/.18));
    const fist={x:pose.x+hand*8*load,y:pose.y+6*load};
@@ -198,7 +218,7 @@ const coach2D=(()=>{
     elbow={x:(500+hand*270)*(1-extension)+solved.x*extension,y:710*(1-extension)+solved.y*extension};
     if(iteration<4)angle=-hand*.08*(1-extension)+(Math.atan2(elbow.y-fist.y,elbow.x-fist.x)-Math.PI/2)*extension;
    }
-   const turn=easeMotion((pose.reach-.1)/.48),extended=['hook','uppercut','shovel'].includes(pose.motion)?2:1;
+   const turn=easeMotion((pose.reach-.1)/.48),extended=1;
    const cuffWidth=w*(state.playerParts[0].wristSpan*(1-turn)+state.playerParts[extended].wristSpan*turn);
    const wristWidth=Math.min(cuffWidth*.82,54);
    const arm=armShape(shoulder,elbow,cuff,116,104-10*reach,wristWidth);

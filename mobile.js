@@ -42,10 +42,10 @@ for(const element of [directionPad,strikeButton]){
  });element.addEventListener('contextmenu',e=>e.preventDefault());
 }
 function syncTouchLesson(){
- const active=run&&tutorial>=0,lesson=lessons[tutorial],lane=lesson?.lane??0,low=tutorial===lessons.length||lesson?.mode==='evade';
+ const active=run&&tutorial>=0,lesson=lessons[tutorial],lane=lesson?.weave?-(lesson.lane||0):lesson?.lane??0,low=!lesson?.weave&&(tutorial===lessons.length||lesson?.mode==='evade'||!!lesson?.body);
  const ready=active&&(!['clash','evade'].includes(lesson?.mode)||!!attack?.trainingHeld);
  for(const b of directionPad.querySelectorAll('button')){
-  const target=active&&Number(b.dataset.lane)===lane&&(b.dataset.low==='1')===low;
+  const target=active&&(lesson?.weave&&lesson.lane===0?Number(b.dataset.lane)!==0:Number(b.dataset.lane)===lane)&&(b.dataset.low==='1')===low;
   b.classList.toggle('lessonDim',active&&!target);b.classList.toggle('lessonTarget',target);b.classList.toggle('lessonReady',target&&ready);
  }
  strikeButton.classList.toggle('lessonDim',active&&lesson?.mode==='evade');
@@ -77,8 +77,8 @@ function drawTrainingSpotlight(){
  g.fillStyle='#0009';g.fillRect(0,0,1000,590);g.restore();
  g.save();g.strokeStyle=color;g.lineWidth=ready?5:2;g.beginPath();g.ellipse(focus.x,focus.y,focus.rx,focus.ry,0,0,Math.PI*2);g.stroke();g.restore();
  const mobile=matchMedia('(pointer:coarse), (max-width:900px)').matches;
- const input=tutorial===lessons.length?(mobile?['중하','타격']:['↓','S / K']):evade?(mobile?['중하 ↓']:['↓']):(mobile?[['좌','중','우'][lane+1],'타격']:[['A / J','S / K','D / L'][lane+1]]);
- const heading=defense?(ready?'지금 누르세요 · 주먹이 기다립니다':attack?.trainingReleased?'좋아요 · 숙인 자세 유지':'주먹이 천천히 다가옵니다'):'강조된 곳을 이 키로 공격하세요';
+ const input=tutorial===lessons.length?(mobile?['중하','타격']:['↓','S / K']):lesson?.weave?[lesson.lane<0?'→':lesson.lane>0?'←':'← / →']:evade?(mobile?['중하 ↓']:['↓']):lesson?.body?(mobile?[lane<0?'좌하':'우하','타격']:['↓',lane<0?'A / J':'D / L']):(mobile?[['좌','중','우'][lane+1],'타격']:[['A / J','S / K','D / L'][lane+1]]);
+ const heading=defense?(ready?'지금 누르세요 · 주먹이 기다립니다':attack?.trainingReleased?(lesson?.weave?'좋아요 · 위빙 유지':'좋아요 · 숙인 자세 유지'):'주먹이 천천히 다가옵니다'):'강조된 곳을 이 키로 공격하세요';
  text(heading,500,110,23,color);
  const width=input.length===1?190:142,gap=26,total=input.length*width+(input.length-1)*gap,left=500-total/2;
  for(let i=0;i<input.length;i++){

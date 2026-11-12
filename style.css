@@ -138,6 +138,6 @@ main>footer a{color:#a8b8ba}
 #touchControls .lessonTarget{border:2px solid #e8c58c;color:#fff0cc;opacity:1}
 #touchControls .lessonReady{background:#f5e4a6;color:#172127;box-shadow:0 0 0 3px #fff0bd66,0 0 20px #f5e4a688;font-weight:900}
 @media(max-width:700px){
- .arena:has(#storyComicImage:is([src$="rules-origin.png"],[src$="watch-origin.png"],[src$="senior-dinner-origin.png"])):has(#dialogueScene:not([hidden])){min-height:570px}
- #storyComic img:is([src$="rules-origin.png"],[src$="watch-origin.png"],[src$="senior-dinner-origin.png"]){object-position:center 24%}
+ .arena:has(#storyComicImage:is([src$="rules-origin.png"],[src$="watch-origin.png"],[src$="senior-dinner-origin.png"],[src$="senior-delegation-origin.png"])):has(#dialogueScene:not([hidden])){min-height:570px}
+ #storyComic img:is([src$="rules-origin.png"],[src$="watch-origin.png"],[src$="senior-dinner-origin.png"],[src$="senior-delegation-origin.png"]){object-position:center 24%}
 }

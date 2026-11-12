@@ -21,8 +21,8 @@ function beginWeave(code){
  if(direction&&direction!==old)weaveStartedAt=t;
 }
 function weaveEvades(a){
- const style=a.motion||a.kind;
- return !a.body&&!['hook','shovel','uppercut'].includes(style)&&Math.abs(playerX)>32&&Math.sign(playerX)===a.side;
+ const lane=a.lane??a.side;
+ return Math.abs(playerX)>32&&(lane===0||Math.sign(playerX)===-Math.sign(lane));
 }
 function tickTactics(dt){
  const move=Number(!!keys.ArrowRight)-Number(!!keys.ArrowLeft);

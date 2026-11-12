@@ -6,10 +6,32 @@ const fighters2D=(()=>{
  const load=(image,name)=>new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(Error('Fighter art unavailable: '+name));image.src='assets/fighters/'+name+'.png';});
  state.assetPromise=Promise.all([coach2D.assetPromise,...images.map((img,i)=>load(img,['heads-a','heads-b','wardrobe','shareholder'][i]))]).then(()=>{
   if(!coach2D.ready)throw Error('Shared comic rig unavailable');
-  state.heads=[...coach2D.slices(images[0],3,5),...coach2D.slices(images[1],3,5)];
-  state.wardrobe=coach2D.slices(images[2],2,2);state.boss=coach2D.slices(images[3],3,1);
+  state.heads=[...coach2D.slices(images[0],3,5),...coach2D.slices(images[1],3,5)].map((part,i)=>i%3===2&&i!==5?attackBounds(part):part);
+  state.wardrobe=coach2D.slices(images[2],2,2);state.boss=coach2D.slices(images[3],3,1).map((part,i)=>i===2?attackBounds(part):part);
   state.ready=true;
  }).catch(error=>{state.error=String(error);});
+ function attackBounds(part){
+  // Ignore isolated ink from the next atlas row below the connected head.
+  const canvas=document.createElement('canvas');canvas.width=part.w;canvas.height=part.h;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(part.image,part.x,part.y,part.w,part.h,0,0,part.w,part.h);
+  const data=ctx.getImageData(0,0,part.w,part.h).data,x=Math.floor(part.w/2);
+  let start=0,bestStart=0,bestEnd=part.h,bestLength=0;
+  for(let y=0;y<=part.h;y++){
+   if(y<part.h&&data[(y*part.w+x)*4+3]>128)continue;
+   if(y-start>bestLength){bestStart=start;bestEnd=y;bestLength=y-start;}
+   start=y+1;
+  }
+  if(bestLength<part.h*.5)throw Error('Disconnected attack head');
+  return {...part,h:bestEnd,sourceHeight:part.h,connectedTop:bestStart};
+ }
+ function attackNeck(part){
+  const image=document.createElement('canvas');image.width=part.w;image.height=96;
+  const ctx=image.getContext('2d');
+  const paint=()=>ctx.drawImage(part.image,part.x,part.y+part.h*.955,part.w,part.h*.03,0,0,part.w,96);
+  ctx.filter='blur(9px)';paint();ctx.filter='none';
+  ctx.globalCompositeOperation='destination-in';paint();
+  return {...part,image,x:0,y:0,h:96};
+ }
  const rgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
  // Tint once per opponent, retaining the original comic's ink, folds and alpha.
  function colored(part,color,mode='cloth',skin=null){
@@ -45,12 +67,14 @@ const fighters2D=(()=>{
   // The peer wears a polo, so its tie clip is a small placket clip.
   if(prop==='tieclip'){g.fillStyle='#b9c1be';g.fillRect(-10,55,20,3);}
   if(index>=10&&index!==99){
+   g.save();g.translate(0,-(p.headLift||0));
    const age=Math.max(0,(look.age-32)/35);
    if(age>0){g.strokeStyle=`rgba(85,52,38,${Math.min(.48,age*.5)})`;g.lineWidth=.9;
     for(const y of [-164,-159]){g.beginPath();g.moveTo(-20,y);g.quadraticCurveTo(0,y+3,20,y);g.stroke();}
     for(const side of [-1,1]){g.beginPath();g.moveTo(side*24,-94);g.quadraticCurveTo(side*34,-85,side*31,-76);g.stroke();}
    }
    if(look.beard){g.fillStyle=look.hairColor+'88';g.beginPath();g.moveTo(-38,-58);g.quadraticCurveTo(0,-19,38,-58);g.lineTo(26,-29);g.quadraticCurveTo(0,-8,-26,-29);g.closePath();g.fill();}
+   g.restore();
   }
   g.restore();
  }
@@ -60,10 +84,13 @@ const fighters2D=(()=>{
   const key=index+':'+JSON.stringify(look);if(state.cache.has(key))return state.cache.get(key);
   const heads=index===99?state.boss:state.heads.slice(family*3,family*3+3);
   const outfit=['hoodie','shirt','polo','suit'].indexOf(look.outfit),torso=colored(state.wardrobe[outfit],look.suit);
-  const headParts=index<10||index===99?heads:heads.map(part=>colored(part,look.hairColor,'head',look.skinMid));
+  const headParts=(index<10||index===99?heads:heads.map(part=>colored(part,look.hairColor,'head',look.skinMid))).slice();
+  // The lowered attack jaw reaches the sprite bottom. Never stretch it as neck.
+  const keepNeck=family===1;
+  headParts[2]={...headParts[2],faceSplit:keepNeck ? .99 : .985,neckSource:keepNeck?headParts[0]:attackNeck(headParts[2]),neckMode:keepNeck?'rest':'attack'};
   const gloves=coach2D.parts.slice(6).map(part=>colored(part,look.glove,'glove'));
   const build=look.body/110;
-  const proportions={...coach2D.proportions,neckSplit:.90,neckWidth:.88,neckLength:.95,headWidth:156*Math.pow(look.faceWidth/65,.55),torsoWidth:480*Math.pow(build,.7),shoulderHalfWidth:170*Math.pow(build,.7),upperArmWidth:74*Math.pow(build,.55),forearmWidth:60*Math.pow(build,.55)};
+  const proportions={...coach2D.proportions,headLift:28,neckSplit:.90,neckWidth:.88,neckLength:.95,headWidth:156*Math.pow(look.faceWidth/65,.55),torsoWidth:480*Math.pow(build,.7),shoulderHalfWidth:170*Math.pow(build,.7),upperArmWidth:74*Math.pow(build,.55),forearmWidth:60*Math.pow(build,.55)};
   const profile={index,family,look,proportions,skin:look.skinMid,parts:[...headParts,torso,null,null,...gloves],drawDetails:()=>details(look,proportions,index)};
   state.cache.set(key,profile);return profile;
  };
